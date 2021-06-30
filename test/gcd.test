@@ -1,0 +1,7 @@
+func gcd() {
+    if ($2 == 0) return $1
+    return gcd($2, $1 % $2)
+}
+
+res = gcd(84,35)
+print res
