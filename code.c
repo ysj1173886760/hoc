@@ -19,7 +19,7 @@ typedef struct Frame {	/* proc/func call stack frame */
 	Symbol	*sp;	/* symbol table entry */
 	Inst	*retpc;	/* where to resume after return */
 	Datum	*argn;	/* n-th argument on stack */
-	int	nargs;	/* number of arguments */
+	long nargs;	/* number of arguments */
 } Frame;
 #define	NFRAME	100
 Frame	frame[NFRAME];
@@ -148,7 +148,7 @@ call(void) 		/* call a function */
 	if (fp++ >= &frame[NFRAME-1])
 		execerror(sp->name, "call nested too deeply");
 	fp->sp = sp;
-	fp->nargs = (int)pc[1];
+	fp->nargs = (long)pc[1];
 	fp->retpc = pc + 2;
 	fp->argn = stackp - 1;	/* last argument */
 	execute(sp->u.defn);
@@ -189,7 +189,7 @@ procret(void) 	/* return from a procedure */
 double*
 getarg(void) 	/* return pointer to argument */
 {
-	int nargs = (int) *pc++;
+	int nargs = (long) *pc++;
 	if (nargs > fp->nargs)
 	    execerror(fp->sp->name, "not enough arguments");
 	return &fp->argn[nargs - fp->nargs].val;

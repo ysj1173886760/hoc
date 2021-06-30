@@ -48,6 +48,7 @@ extern double	Asin(double), Acos(double), Sinh(double), Cosh(double), integer(do
 extern double	Pow(double, double);
 
 extern	void init(void);
+extern	int yylex(void);
 extern	int yyparse(void);
 extern	void execerror(char*, char*);
 extern	void *emalloc(unsigned);
