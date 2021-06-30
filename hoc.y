@@ -9,7 +9,7 @@ void yyerror(char* s);
 %union {
 	Symbol	*sym;	/* symbol table pointer */
 	Inst	*inst;	/* machine instruction */
-	int	narg;	/* number of arguments */
+	long	narg;	/* number of arguments */
 }
 %token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE
 %token	<sym>	FUNCTION PROCEDURE RETURN FUNC PROC READ
@@ -331,7 +331,7 @@ main(int argc, char* argv[])	/* hoc6 */
 	return 0;
 }
 
-moreinput(void)
+int moreinput(void)
 {
 	if (gargc-- <= 0)
 		return 0;
