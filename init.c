@@ -56,8 +56,7 @@ static struct {		/* Built-ins */
 	0,	0
 };
 
-void
-init(void)	/* install constants and built-ins in table */
+void init(void)	/* install constants and built-ins in table */
 {
 	int i;
 	Symbol *s;

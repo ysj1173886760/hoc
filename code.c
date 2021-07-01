@@ -25,8 +25,7 @@ typedef struct Frame {	/* proc/func call stack frame */
 Frame	frame[NFRAME];
 Frame	*fp;		/* frame pointer */
 
-void
-initcode(void)
+void initcode(void)
 {
 	progp = progbase;
 	stackp = stack;
@@ -35,48 +34,42 @@ initcode(void)
 	indef = 0;
 }
 
-void
-push(Datum d)
+void push(Datum d)
 {
 	if (stackp >= &stack[NSTACK])
 		execerror("stack too deep", 0);
 	*stackp++ = d;
 }
 
-Datum
-pop(void)
+Datum pop(void)
 {
 	if (stackp == stack)
 		execerror("stack underflow", 0);
 	return *--stackp;
 }
 
-void
-xpop(void)	/* for when no value is wanted */
+void xpop(void)	/* for when no value is wanted */
 {
 	if (stackp == stack)
 		execerror("stack underflow", (char *)0);
 	--stackp;
 }
 
-void
-constpush(void)
+void constpush(void)
 {
 	Datum d;
 	d.val = ((Symbol *)*pc++)->u.val;
 	push(d);
 }
 
-void
-varpush(void)
+void varpush(void)
 {
 	Datum d;
 	d.sym = (Symbol *)(*pc++);
 	push(d);
 }
 
-void
-whilecode(void)
+void whilecode(void)
 {
 	Datum d;
 	Inst *savepc = pc;
@@ -94,8 +87,7 @@ whilecode(void)
 		pc = *((Inst **)(savepc+1)); /* next stmt */
 }
 
-void
-forcode(void)
+void forcode(void)
 {
 	Datum d;
 	Inst *savepc = pc;
@@ -117,8 +109,7 @@ forcode(void)
 		pc = *((Inst **)(savepc+3)); /* next stmt */
 }
 
-void
-ifcode(void) 
+void ifcode(void) 
 {
 	Datum d;
 	Inst *savepc = pc;	/* then part */
@@ -133,15 +124,13 @@ ifcode(void)
 		pc = *((Inst **)(savepc+2)); /* next stmt */
 }
 
-void
-define(Symbol* sp)	/* put func/proc in symbol table */
+void define(Symbol* sp)	/* put func/proc in symbol table */
 {
 	sp->u.defn = progbase;	/* start of code */
 	progbase = progp;	/* next code starts here */
 }
 
-void
-call(void) 		/* call a function */
+void call(void) 		/* call a function */
 {
 	Symbol *sp = (Symbol *)pc[0]; /* symbol table entry */
 				      /* for function */
@@ -155,8 +144,7 @@ call(void) 		/* call a function */
 	returning = 0;
 }
 
-static void
-ret(void) 		/* common return from func or proc */
+static void ret(void) 		/* common return from func or proc */
 {
 	int i;
 	for (i = 0; i < fp->nargs; i++)
@@ -166,8 +154,7 @@ ret(void) 		/* common return from func or proc */
 	returning = 1;
 }
 
-void
-funcret(void) 	/* return from a function */
+void funcret(void) 	/* return from a function */
 {
 	Datum d;
 	if (fp->sp->type == PROCEDURE)
@@ -177,8 +164,7 @@ funcret(void) 	/* return from a function */
 	push(d);
 }
 
-void
-procret(void) 	/* return from a procedure */
+void procret(void) 	/* return from a procedure */
 {
 	if (fp->sp->type == FUNCTION)
 		execerror(fp->sp->name,
@@ -186,8 +172,7 @@ procret(void) 	/* return from a procedure */
 	ret();
 }
 
-double*
-getarg(void) 	/* return pointer to argument */
+double* getarg(void) 	/* return pointer to argument */
 {
 	int nargs = (long) *pc++;
 	if (nargs > fp->nargs)
@@ -195,16 +180,14 @@ getarg(void) 	/* return pointer to argument */
 	return &fp->argn[nargs - fp->nargs].val;
 }
 
-void
-arg(void) 	/* push argument onto stack */
+void arg(void) 	/* push argument onto stack */
 {
 	Datum d;
 	d.val = *getarg();
 	push(d);
 }
 
-void
-argassign(void) 	/* store top of stack in argument */
+void argassign(void) 	/* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
@@ -212,8 +195,7 @@ argassign(void) 	/* store top of stack in argument */
 	*getarg() = d.val;
 }
 
-void
-argaddeq(void) 	/* store top of stack in argument */
+void argaddeq(void) 	/* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
@@ -221,8 +203,7 @@ argaddeq(void) 	/* store top of stack in argument */
 	push(d);	/* leave value on stack */
 }
 
-void
-argsubeq(void) 	/* store top of stack in argument */
+void argsubeq(void) 	/* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
@@ -230,8 +211,7 @@ argsubeq(void) 	/* store top of stack in argument */
 	push(d);	/* leave value on stack */
 }
 
-void
-argmuleq(void) 	/* store top of stack in argument */
+void argmuleq(void) 	/* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
@@ -239,8 +219,7 @@ argmuleq(void) 	/* store top of stack in argument */
 	push(d);	/* leave value on stack */
 }
 
-void
-argdiveq(void) 	/* store top of stack in argument */
+void argdiveq(void) 	/* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
@@ -248,8 +227,7 @@ argdiveq(void) 	/* store top of stack in argument */
 	push(d);	/* leave value on stack */
 }
 
-void
-argmodeq(void) 	/* store top of stack in argument */
+void argmodeq(void) 	/* store top of stack in argument */
 {
 	Datum d;
 	double *x;
@@ -262,8 +240,7 @@ argmodeq(void) 	/* store top of stack in argument */
 	push(d);	/* leave value on stack */
 }
 
-void
-bltin(void) 
+void bltin(void) 
 {
 
 	Datum d;
@@ -272,8 +249,7 @@ bltin(void)
 	push(d);
 }
 
-void
-add(void)
+void add(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -282,8 +258,7 @@ add(void)
 	push(d1);
 }
 
-void
-sub(void)
+void sub(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -292,8 +267,7 @@ sub(void)
 	push(d1);
 }
 
-void
-mul(void)
+void mul(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -302,8 +276,7 @@ mul(void)
 	push(d1);
 }
 
-void
-divop(void)
+void divop(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -314,8 +287,7 @@ divop(void)
 	push(d1);
 }
 
-void
-mod(void)
+void mod(void)
 {
 	Datum d1, d2;
 	long x;
@@ -330,8 +302,7 @@ mod(void)
 	push(d1);
 }
 
-void
-negate(void)
+void negate(void)
 {
 	Datum d;
 	d = pop();
@@ -339,8 +310,7 @@ negate(void)
 	push(d);
 }
 
-void
-verify(Symbol* s)
+void verify(Symbol* s)
 {
 	if (s->type != VAR && s->type != UNDEF)
 		execerror("attempt to evaluate non-variable", s->name);
@@ -348,8 +318,7 @@ verify(Symbol* s)
 		execerror("undefined variable", s->name);
 }
 
-void
-eval(void)		/* evaluate variable on stack */
+void eval(void)		/* evaluate variable on stack */
 {
 	Datum d;
 	d = pop();
@@ -358,8 +327,7 @@ eval(void)		/* evaluate variable on stack */
 	push(d);
 }
 
-void
-preinc(void)
+void preinc(void)
 {
 	Datum d;
 	d.sym = (Symbol *)(*pc++);
@@ -368,8 +336,7 @@ preinc(void)
 	push(d);
 }
 
-void
-predec(void)
+void predec(void)
 {
 	Datum d;
 	d.sym = (Symbol *)(*pc++);
@@ -378,8 +345,7 @@ predec(void)
 	push(d);
 }
 
-void
-postinc(void)
+void postinc(void)
 {
 	Datum d;
 	double v;
@@ -391,8 +357,7 @@ postinc(void)
 	push(d);
 }
 
-void
-postdec(void)
+void postdec(void)
 {
 	Datum d;
 	double v;
@@ -404,8 +369,7 @@ postdec(void)
 	push(d);
 }
 
-void
-gt(void)
+void gt(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -414,8 +378,7 @@ gt(void)
 	push(d1);
 }
 
-void
-lt(void)
+void lt(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -424,8 +387,7 @@ lt(void)
 	push(d1);
 }
 
-void
-ge(void)
+void ge(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -434,8 +396,7 @@ ge(void)
 	push(d1);
 }
 
-void
-le(void)
+void le(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -444,8 +405,7 @@ le(void)
 	push(d1);
 }
 
-void
-eq(void)
+void eq(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -454,8 +414,7 @@ eq(void)
 	push(d1);
 }
 
-void
-ne(void)
+void ne(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -464,8 +423,7 @@ ne(void)
 	push(d1);
 }
 
-void
-and(void)
+void and(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -474,8 +432,7 @@ and(void)
 	push(d1);
 }
 
-void
-or(void)
+void or(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -484,8 +441,7 @@ or(void)
 	push(d1);
 }
 
-void
-not(void)
+void not(void)
 {
 	Datum d;
 	d = pop();
@@ -493,8 +449,7 @@ not(void)
 	push(d);
 }
 
-void
-power(void)
+void power(void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -503,8 +458,7 @@ power(void)
 	push(d1);
 }
 
-void
-assign(void)
+void assign(void)
 {
 	Datum d1, d2;
 	d1 = pop();
@@ -517,8 +471,7 @@ assign(void)
 	push(d2);
 }
 
-void
-addeq(void)
+void addeq(void)
 {
 	Datum d1, d2;
 	d1 = pop();
@@ -531,8 +484,7 @@ addeq(void)
 	push(d2);
 }
 
-void
-subeq(void)
+void subeq(void)
 {
 	Datum d1, d2;
 	d1 = pop();
@@ -545,8 +497,7 @@ subeq(void)
 	push(d2);
 }
 
-void
-muleq(void)
+void muleq(void)
 {
 	Datum d1, d2;
 	d1 = pop();
@@ -559,8 +510,7 @@ muleq(void)
 	push(d2);
 }
 
-void
-diveq(void)
+void diveq(void)
 {
 	Datum d1, d2;
 	d1 = pop();
@@ -573,8 +523,7 @@ diveq(void)
 	push(d2);
 }
 
-void
-modeq(void)
+void modeq(void)
 {
 	Datum d1, d2;
 	long x;
@@ -591,8 +540,7 @@ modeq(void)
 	push(d2);
 }
 
-void
-printtop(void)	/* pop top value from stack, print it */
+void printtop(void)	/* pop top value from stack, print it */
 {
 	Datum d;
 	static Symbol *s;	/* last value computed */
@@ -603,22 +551,19 @@ printtop(void)	/* pop top value from stack, print it */
 	s->u.val = d.val;
 }
 
-void
-prexpr(void)	/* print numeric value */
+void prexpr(void)	/* print numeric value */
 {
 	Datum d;
 	d = pop();
 	printf("%.*g ", (int)lookup("PREC")->u.val, d.val);
 }
 
-void
-prstr(void)		/* print string value */ 
+void prstr(void)		/* print string value */ 
 {
 	printf("%s", (char *) *pc++);
 }
 
-void
-varread(void)	/* read into variable */
+void varread(void)	/* read into variable */
 {
 	Datum d;
 	extern FILE *fin;
@@ -641,8 +586,7 @@ varread(void)	/* read into variable */
 	push(d);
 }
 
-Inst*
-code(Inst f)	/* install one instruction or operand */
+Inst* code(Inst f)	/* install one instruction or operand */
 {
 	Inst *oprogp = progp;
 	if (progp >= &prog[NPROG])
@@ -651,8 +595,7 @@ code(Inst f)	/* install one instruction or operand */
 	return oprogp;
 }
 
-void
-execute(Inst* p)
+void execute(Inst* p)
 {
 	for (pc = p; *pc != STOP && !returning; )
 		(*((++pc)[-1]))();

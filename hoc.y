@@ -155,8 +155,8 @@ int	gargc;
 int c = '\n';	/* global for use by warning() */
 
 int	backslash(int), follow(int, int, int);
-void	defnonly(char*), run(void);
-void	warning(char*, char*);
+void defnonly(char*), run(void);
+void warning(char*, char*);
 
 int yylex(void)		/* hoc6 */
 {
@@ -266,8 +266,7 @@ int follow(int expect, int ifyes, int ifno)	/* look ahead for >=, etc. */
 	return ifno;
 }
 
-void
-yyerror(char* s)	/* report compile-time error */
+void yyerror(char* s)	/* report compile-time error */
 {
 /*rob
 	warning(s, (char *)0);
@@ -276,28 +275,24 @@ rob*/
 	execerror(s, (char *)0);
 }
 
-void
-execerror(char* s, char* t)	/* recover from run-time error */
+void execerror(char* s, char* t)	/* recover from run-time error */
 {
 	warning(s, t);
 	fseek(fin, 0L, 2);		/* flush rest of file */
 	longjmp(begin, 0);
 }
 
-void
-fpecatch(int signum)	/* catch floating point exceptions */
+void fpecatch(int signum)	/* catch floating point exceptions */
 {
 	execerror("floating point exception", (char *) 0);
 }
 
-void
-intcatch(int signum)	/* catch interrupts */
+void intcatch(int signum)	/* catch interrupts */
 {
 	execerror("interrupt", (char *) 0);
 }
 
-void
-run(void)	/* execute until EOF */
+void run(void)	/* execute until EOF */
 {
 	setjmp(begin);
 	signal(SIGINT, intcatch);
@@ -306,8 +301,7 @@ run(void)	/* execute until EOF */
 		execute(progbase);
 }
 
-int
-main(int argc, char* argv[])	/* hoc6 */
+int main(int argc, char* argv[])	/* hoc6 */
 {
 	static int first = 1;
 #if YYDEBUG
@@ -349,8 +343,7 @@ int moreinput(void)
 	return 1;
 }
 
-void
-warning(char *s, char *t)	/* print warning message */
+void warning(char *s, char *t)	/* print warning message */
 {
 	fprintf(stderr, "%s: %s", progname, s);
 	if (t)
@@ -367,8 +360,7 @@ warning(char *s, char *t)	/* print warning message */
 		}
 }
 
-void
-defnonly(char *s)	/* warn if illegal definition */
+void defnonly(char *s)	/* warn if illegal definition */
 {
 	if (!indef)
 		execerror(s, "used outside definition");

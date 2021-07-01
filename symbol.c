@@ -5,8 +5,7 @@
 
 static Symbol *symlist = 0;  /* symbol table: linked list */
 
-Symbol*
-lookup(char* s)	/* find s in symbol table */
+Symbol* lookup(char* s)	/* find s in symbol table */
 {
 	Symbol *sp;
 
@@ -16,8 +15,7 @@ lookup(char* s)	/* find s in symbol table */
 	return 0;	/* 0 ==> not found */	
 }
 
-Symbol*
-install(char* s, int t, double d)  /* install s in symbol table */
+Symbol* install(char* s, int t, double d)  /* install s in symbol table */
 {
 	Symbol *sp;
 
@@ -31,8 +29,7 @@ install(char* s, int t, double d)  /* install s in symbol table */
 	return sp;
 }
 
-void*
-emalloc(unsigned n)	/* check return from malloc */
+void* emalloc(unsigned n)	/* check return from malloc */
 {
 	char *p;
 

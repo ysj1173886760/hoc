@@ -7,25 +7,22 @@ double	errcheck();
 
 double	errcheck(double, char*);
 
-double
-Log(double x)
+double Log(double x)
 {
 	return errcheck(log(x), "log");
 }
-double
-Log10(double x)
+
+double Log10(double x)
 {
 	return errcheck(log10(x), "log10");
 }
 
-double
-Sqrt(double x)
+double Sqrt(double x)
 {
 	return errcheck(sqrt(x), "sqrt");
 }
 
-double
-Gamma(double x)
+double Gamma(double x)
 {
 	double y;
 	extern int signgam;
@@ -35,48 +32,42 @@ Gamma(double x)
 	return signgam*exp(y);
 }
 
-double
-Exp(double x)
+double Exp(double x)
 {
 	return errcheck(exp(x), "exp");
 }
 
-double
-Asin(double x)
+double Asin(double x)
 {
 	return errcheck(asin(x), "asin");
 }
 
-double
-Acos(double x)
+double Acos(double x)
 {
 	return errcheck(acos(x), "acos");
 }
 
-double
-Sinh(double x)
+double Sinh(double x)
 {
 	return errcheck(sinh(x), "sinh");
 }
-double
-Cosh(double x)
+
+double Cosh(double x)
 {
 	return errcheck(cosh(x), "cosh");
 }
-double
-Pow(double x, double y)
+
+double Pow(double x, double y)
 {
 	return errcheck(pow(x,y), "exponentiation");
 }
 
-double
-integer(double x)
+double integer(double x)
 {
 	return (double)(long)x;
 }
 
-double
-errcheck(double d, char* s)	/* check result of library call */
+double errcheck(double d, char* s)	/* check result of library call */
 {
 	if (errno == EDOM) {
 		errno = 0;
