@@ -295,8 +295,6 @@ void intcatch(int signum)	/* catch interrupts */
 void run(void)	/* execute until EOF */
 {
 	setjmp(begin);
-	signal(SIGINT, intcatch);
-	signal(SIGFPE, fpecatch);
 	for (initcode(); yyparse(); initcode())
 		execute(progbase);
 }
@@ -321,7 +319,6 @@ int main(int argc, char* argv[])	/* hoc6 */
 	}
 	while (moreinput())
 		run();
-	signal(SIGINT, SIG_IGN);
 	return 0;
 }
 
