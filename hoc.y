@@ -3,6 +3,7 @@
 #include "hoc.h"
 #define	code2(c1,c2)	code(c1); code(c2)
 #define	code3(c1,c2,c3)	code(c1); code(c2); code(c3)
+#define InteractiveEnv 0
 int	indef;
 void yyerror(char* s);
 %}
@@ -301,22 +302,29 @@ void run(void)	/* execute until EOF */
 
 int main(int argc, char* argv[])	/* hoc6 */
 {
-	static int first = 1;
 #if YYDEBUG
 	yydebug=3;
 #endif
+
 	progname = argv[0];
 	init();
+
+	// normal argument list, argc - 1 means we don't count the proc name, argv + 1 means we are starting from the first argument
+	gargv = argv+1;
+	gargc = argc-1;
+
+	/* Interactive Env */
 	if (argc == 1) {	/* fake an argument list */
+		if (!InteractiveEnv) {
+			fprintf(stderr, "WARNING::Disabling Interactive Environment\n");
+			return 0;
+		}
 		static char *stdinonly[] = { "-" };
 
 		gargv = stdinonly;
 		gargc = 1;
-	} else if (first) {	/* for interrupts */
-		first = 0;
-		gargv = argv+1;
-		gargc = argc-1;
 	}
+	
 	while (moreinput())
 		run();
 	return 0;
@@ -333,7 +341,7 @@ int moreinput(void)
 	if (strcmp(infile, "-") == 0) {
 		fin = stdin;
 		infile = 0;
-	} else if ((fin=fopen(infile, "r")) == NULL) {
+	} else if ((fin = fopen(infile, "r")) == NULL) {
 		fprintf(stderr, "%s: can't open %s\n", progname, infile);
 		return moreinput();
 	}
