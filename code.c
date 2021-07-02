@@ -579,7 +579,7 @@ void varread(void)	/* read into variable */
 		execerror("non-number read into", var->name);
 		break;
 	default:
-		d.val = 1.0;
+		d.val = var->u.val;
 		break;
 	}
 	var->type = VAR;
