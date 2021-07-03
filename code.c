@@ -1,6 +1,8 @@
 #include "hoc.h"
 #include "y.tab.h"
 #include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
 
 #define NSTACK 256
 
@@ -13,7 +15,10 @@ Inst *progp;		   /* next free spot for code generation */
 Inst *pc;			   /* program counter during execution */
 Inst *progbase = prog; /* start of current subprogram */
 int returning;		   /* 1 if return stmt seen */
+
 extern int indef;	   /* 1 if parsing a func or proc */
+extern int debugLevel;
+extern int debugFlag;
 
 typedef struct Frame
 {						 /* proc/func call stack frame */
@@ -26,6 +31,32 @@ typedef struct Frame
 #define NFRAME 100
 Frame frame[NFRAME];
 Frame *fp; /* frame pointer */
+
+void debugC(int flag, int level, const char *format, ...) {
+	va_list va;
+	memset(&va, 0, sizeof(va_list));
+	char buf[1024] = {0};
+
+	if (debugLevel >= level && (debugFlag & flag) != 0) {
+		va_start(va, format);
+		vsprintf(buf, format, va);
+		va_end(va);
+	}
+	printf("%s", buf);
+}
+
+void debug(int level, const char *format, ...) {
+	va_list va;
+	memset(&va, 0, sizeof(va_list));
+	char buf[1024] = {0};
+
+	if (debugLevel >= level) {
+		va_start(va, format);
+		vsprintf(buf, format, va);
+		va_end(va);
+	}
+	printf("%s", buf);
+}
 
 void initcode(void)
 {
@@ -161,6 +192,9 @@ void call(void) /* call a function */
 	// TODO : 1 2 4 8 动态增加内存
 	fp->argn = (ArgDatum *)emalloc(sizeof(ArgDatum) * NSTACK);
 	fp->argstackp = fp->argn;
+
+	debugC(hocExec, 0, "calling %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
+	debugC(hocExec, 5, "entry address %p  return address %p\n", sp->u.defn, fp->retpc);
 
 	int tmp_nargs = fp->nargs;
 	while (tmp_nargs--)
@@ -628,6 +662,8 @@ Inst *code(Inst f) /* install one instruction or operand */
 
 void execute(Inst *p)
 {
+	debugC(hocExec, 4, "Executing from %p\n", p);
 	for (pc = p; *pc != STOP && !returning;)
 		(*((++pc)[-1]))();
+	debugC(hocExec, 4, "Executing ended at %p, starting from %p\n", pc, p);
 }

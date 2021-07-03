@@ -3,8 +3,14 @@
 #include "hoc.h"
 #define	code2(c1,c2)	code(c1); code(c2)
 #define	code3(c1,c2,c3)	code(c1); code(c2); code(c3)
+
 #define InteractiveEnv 0
 int	indef;
+
+// TODO: move reading debuglevel and debugflag from argument
+int debugLevel = 0;
+int debugFlag = hocExec;
+
 void yyerror(char* s);
 %}
 %union {

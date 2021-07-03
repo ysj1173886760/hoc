@@ -28,8 +28,12 @@ typedef union ArgDatum
 	Symbol *sym;
 } ArgDatum;
 
-extern double
-Fgetd(int);
+enum DebugFlag {
+	hocCompile	= 1 << 0,
+	hocExec		= 1 << 1
+};
+
+extern double Fgetd(int);
 extern int moreinput(void);
 extern void execerror(char *, char *);
 extern void define(Symbol *), verify(Symbol *);
