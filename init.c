@@ -56,6 +56,61 @@ static struct {		/* Built-ins */
 	0,	0
 };
 
+static struct {
+	char *name;
+	Inst inst;
+} codeLookupTable[] = {
+	{"call",		call},
+	{"xpop",		xpop},
+	{"constpush",	constpush},
+	{"varpush",		varpush},
+	{"whilecode",	whilecode},
+	{"forcode",		forcode},
+	{"ifcode",		ifcode},
+	{"funcret",		funcret},
+	{"procret",		procret},
+	{"arg", 		arg},
+	{"argassign",	argassign},
+	{"argaddeq",	argaddeq},
+	{"argsubeq",	argsubeq},
+	{"argmuleq",	argmuleq},
+	{"argdiveq",	argdiveq},
+	{"argmodeq",	argmodeq},
+	{"bltin",		bltin},
+	{"add",			add},
+	{"sub",			sub},
+	{"mul",			mul},
+	{"divop",		divop},
+	{"mod",			mod},
+	{"negate",		negate},
+	{"eval",		eval},
+	{"preinc",		preinc},
+	{"predec",		predec},
+	{"postinc",		postinc},
+	{"postdec",		postdec},
+	{"gt",			gt},
+	{"lt",			lt},
+	{"ge",			ge},
+	{"le",			le},
+	{"eq",			eq},
+	{"ne",			ne},
+	{"and",			and},
+	{"or",			or},
+	{"not",			not},
+	{"power",		power},
+	{"assign",		assign},
+	{"addeq",		addeq},
+	{"subeq",		subeq},
+	{"muleq",		muleq},
+	{"diveq",		diveq},
+	{"modeq",		modeq},
+	{"printop",		printtop},
+	{"prexpr",		prexpr},
+	{"prstr",		prstr},
+	{"varread",		varread},
+	{0,				0}
+};
+
 void init(void)	/* install constants and built-ins in table */
 {
 	int i;
@@ -68,4 +123,12 @@ void init(void)	/* install constants and built-ins in table */
 		s = install(builtins[i].name, BLTIN, 0.0);
 		s->u.ptr = builtins[i].func;
 	}
+}
+
+char *getCodeThoughAddress(Inst inst) {
+	for (int i = 0; codeLookupTable[i].name; i++) {
+		if (inst == codeLookupTable[i].inst)
+			return codeLookupTable[i].name;
+	}
+	return 0;
 }

@@ -33,6 +33,9 @@ enum DebugFlag {
 	hocExec		= 1 << 1
 };
 
+extern char *getCodeThoughAddress(Inst inst);
+extern Symbol* lookupThoughAddress(Symbol *p);
+
 extern double Fgetd(int);
 extern int moreinput(void);
 extern void execerror(char *, char *);

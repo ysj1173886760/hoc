@@ -38,3 +38,11 @@ void* emalloc(unsigned n)	/* check return from malloc */
 		execerror("out of memory", (char *) 0);
 	return p;
 }
+
+Symbol* lookupThoughAddress(Symbol *p) {
+	Symbol *sp;
+	for (sp = symlist; sp != (Symbol *)0; sp = sp->next)
+		if (sp == p)
+			return sp;
+	return 0;
+}

@@ -193,7 +193,7 @@ void call(void) /* call a function */
 	fp->argn = (ArgDatum *)emalloc(sizeof(ArgDatum) * NSTACK);
 	fp->argstackp = fp->argn;
 
-	debugC(hocExec, 0, "calling %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
+	debugC(hocExec, 1, "calling %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
 	debugC(hocExec, 5, "entry address %p  return address %p\n", sp->u.defn, fp->retpc);
 
 	int tmp_nargs = fp->nargs;
