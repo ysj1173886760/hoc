@@ -27,7 +27,7 @@ class Tester:
             stdout_data = p.communicate()[0]
         except Exception as e:
             print("Call of '{}' failed: {}".format(procArgs, e))
-            return
+            return False
         
         resname = os.path.join(self.testFileDirectory, "{}.res".format(testName))
         res = open(resname, "rb")
@@ -36,10 +36,16 @@ class Tester:
             print("{} test passed".format(testName))
         else:
             print("{} test failed \ngot:\n{}\nexpecting:\n{}\n".format(testName, stdout_data.decode("utf-8"), res_data.decode("utf-8")))
+        
+        return True
     
     def run(self):
+        res = True
         for testName in self.testList:
-            self.runTest(testName)
+            res = self.runTest(testName) or res
+
+        if res:
+            print("All test passed!!!!")
 
 
 t = Tester()
