@@ -9,7 +9,7 @@ int	indef;
 
 // TODO: move reading debuglevel and debugflag from argument
 int debugLevel = 0;
-int debugFlag = hocExec;
+int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
 %}
@@ -299,11 +299,35 @@ void intcatch(int signum)	/* catch interrupts */
 	execerror("interrupt", (char *) 0);
 }
 
+void printProg(Inst *start) {
+	if ((debugFlag & hocCompile) != 0 && debugLevel >= 1) {
+		printf("\nPrinting the Program\n");
+		for (Inst *cur = start; cur != progp; cur++) {
+			printf("%p\t", *cur);
+
+			char *code = getCodeThoughAddress(*cur);
+			if (code)
+				printf("%s", code);
+			else {
+				Symbol *sp = lookupThoughAddress((Symbol *)(*cur));
+				if (sp) {
+					printf("%s", sp->name);
+				}
+			}
+
+			printf("\n");
+		}
+	}
+}
+
 void run(void)	/* execute until EOF */
 {
+	Inst *start = progbase;
 	setjmp(begin);
-	for (initcode(); yyparse(); initcode())
+	for (initcode(); yyparse(); initcode()) {
 		execute(progbase);
+	}
+	printProg(start);
 }
 
 int main(int argc, char* argv[])	/* hoc6 */
