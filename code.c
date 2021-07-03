@@ -2,28 +2,30 @@
 #include "y.tab.h"
 #include <stdio.h>
 
-#define	NSTACK	256
+#define NSTACK 256
 
-static Datum stack[NSTACK];	/* the stack */
+static Datum stack[NSTACK]; /* the stack */
 static Datum *stackp;		/* next free spot on stack */
 
-#define	NPROG	2000
-Inst	prog[NPROG];	/* the machine */
-Inst	*progp;		/* next free spot for code generation */
-Inst	*pc;		/* program counter during execution */
-Inst	*progbase = prog; /* start of current subprogram */
-int	returning;	/* 1 if return stmt seen */
-extern int	indef;	/* 1 if parsing a func or proc */
+#define NPROG 2000
+Inst prog[NPROG];	   /* the machine */
+Inst *progp;		   /* next free spot for code generation */
+Inst *pc;			   /* program counter during execution */
+Inst *progbase = prog; /* start of current subprogram */
+int returning;		   /* 1 if return stmt seen */
+extern int indef;	   /* 1 if parsing a func or proc */
 
-typedef struct Frame {	/* proc/func call stack frame */
-	Symbol	*sp;	/* symbol table entry */
-	Inst	*retpc;	/* where to resume after return */
-	Datum	*argn;	/* n-th argument on stack */
-	long nargs;	/* number of arguments */
+typedef struct Frame
+{						 /* proc/func call stack frame */
+	Symbol *sp;			 /* symbol table entry */
+	Inst *retpc;		 /* where to resume after return */
+	ArgDatum *argn;		 /* n-th argument on stack */
+	ArgDatum *argstackp; /* a pointer to argstack top , just like stackp */
+	long nargs;			 /* number of arguments */
 } Frame;
-#define	NFRAME	100
-Frame	frame[NFRAME];
-Frame	*fp;		/* frame pointer */
+#define NFRAME 100
+Frame frame[NFRAME];
+Frame *fp; /* frame pointer */
 
 void initcode(void)
 {
@@ -48,10 +50,25 @@ Datum pop(void)
 	return *--stackp;
 }
 
-void xpop(void)	/* for when no value is wanted */
+void argpush(ArgDatum d)
+{
+	if (fp->argstackp >= fp->argn + NSTACK)
+		execerror("argstack too deep", 0);
+	*fp->argstackp++ = d;
+	// printf("size : %ld\n", fp->argstackp - fp->argn);
+}
+
+ArgDatum argpop(void)
+{
+	if (fp->argstackp == fp->argn)
+		execerror("argstack underflow", 0);
+	return *--fp->argstackp;
+}
+
+void xpop(void) /* for when no value is wanted */
 {
 	if (stackp == stack)
-		execerror("stack underflow", (char *)0);
+		execerror("stack underflow(xpop)", (char *)0);
 	--stackp;
 }
 
@@ -74,17 +91,18 @@ void whilecode(void)
 	Datum d;
 	Inst *savepc = pc;
 
-	execute(savepc+2);	/* condition */
+	execute(savepc + 2); /* condition */
 	d = pop();
-	while (d.val) {
-		execute(*((Inst **)(savepc)));	/* body */
+	while (d.val)
+	{
+		execute(*((Inst **)(savepc))); /* body */
 		if (returning)
 			break;
-		execute(savepc+2);	/* condition */
+		execute(savepc + 2); /* condition */
 		d = pop();
 	}
 	if (!returning)
-		pc = *((Inst **)(savepc+1)); /* next stmt */
+		pc = *((Inst **)(savepc + 1)); /* next stmt */
 }
 
 void forcode(void)
@@ -92,142 +110,154 @@ void forcode(void)
 	Datum d;
 	Inst *savepc = pc;
 
-	execute(savepc+4);		/* precharge */
+	execute(savepc + 4); /* precharge */
 	pop();
-	execute(*((Inst **)(savepc)));	/* condition */
+	execute(*((Inst **)(savepc))); /* condition */
 	d = pop();
-	while (d.val) {
-		execute(*((Inst **)(savepc+2)));	/* body */
+	while (d.val)
+	{
+		execute(*((Inst **)(savepc + 2))); /* body */
 		if (returning)
 			break;
-		execute(*((Inst **)(savepc+1)));	/* post loop */
+		execute(*((Inst **)(savepc + 1))); /* post loop */
 		pop();
-		execute(*((Inst **)(savepc)));	/* condition */
+		execute(*((Inst **)(savepc))); /* condition */
 		d = pop();
 	}
 	if (!returning)
-		pc = *((Inst **)(savepc+3)); /* next stmt */
+		pc = *((Inst **)(savepc + 3)); /* next stmt */
 }
 
-void ifcode(void) 
+void ifcode(void)
 {
 	Datum d;
-	Inst *savepc = pc;	/* then part */
+	Inst *savepc = pc; /* then part */
 
-	execute(savepc+3);	/* condition */
+	execute(savepc + 3); /* condition */
 	d = pop();
 	if (d.val)
-		execute(*((Inst **)(savepc)));	
-	else if (*((Inst **)(savepc+1))) /* else part? */
-		execute(*((Inst **)(savepc+1)));
+		execute(*((Inst **)(savepc)));
+	else if (*((Inst **)(savepc + 1))) /* else part? */
+		execute(*((Inst **)(savepc + 1)));
 	if (!returning)
-		pc = *((Inst **)(savepc+2)); /* next stmt */
+		pc = *((Inst **)(savepc + 2)); /* next stmt */
 }
 
-void define(Symbol* sp)	/* put func/proc in symbol table */
+void define(Symbol *sp) /* put func/proc in symbol table */
 {
-	sp->u.defn = progbase;	/* start of code */
-	progbase = progp;	/* next code starts here */
+	sp->u.defn = progbase; /* start of code */
+	progbase = progp;	   /* next code starts here */
 }
 
-void call(void) 		/* call a function */
+void call(void) /* call a function */
 {
 	Symbol *sp = (Symbol *)pc[0]; /* symbol table entry */
-				      /* for function */
-	if (fp++ >= &frame[NFRAME-1])
+								  /* for function */
+	if (fp++ >= &frame[NFRAME - 1])
 		execerror(sp->name, "call nested too deeply");
 	fp->sp = sp;
 	fp->nargs = (long)pc[1];
 	fp->retpc = pc + 2;
-	fp->argn = stackp - 1;	/* last argument */
+	// TODO : 1 2 4 8 动态增加内存
+	fp->argn = (ArgDatum *)emalloc(sizeof(ArgDatum) * NSTACK);
+	fp->argstackp = fp->argn;
+
+	int tmp_nargs = fp->nargs;
+	while (tmp_nargs--)
+	{
+		Datum tmp_d = pop();
+		ArgDatum tmp_arg;
+		tmp_arg.val = tmp_d.val;
+		argpush(tmp_arg);
+	}
+
 	execute(sp->u.defn);
 	returning = 0;
 }
 
-static void ret(void) 		/* common return from func or proc */
+static void ret(void) /* common return from func or proc */
 {
 	int i;
-	for (i = 0; i < fp->nargs; i++)
-		pop();	/* pop arguments */
 	pc = (Inst *)fp->retpc;
 	--fp;
 	returning = 1;
 }
 
-void funcret(void) 	/* return from a function */
+void funcret(void) /* return from a function */
 {
 	Datum d;
 	if (fp->sp->type == PROCEDURE)
 		execerror(fp->sp->name, "(proc) returns value");
-	d = pop();	/* preserve function return value */
+	d = pop(); /* preserve function return value */
 	ret();
 	push(d);
 }
 
-void procret(void) 	/* return from a procedure */
+void procret(void) /* return from a procedure */
 {
 	if (fp->sp->type == FUNCTION)
 		execerror(fp->sp->name,
-			"(func) returns no value");
+				  "(func) returns no value");
 	ret();
 }
 
-double* getarg(void) 	/* return pointer to argument */
+double *getarg(void) /* return pointer to argument */
 {
-	int nargs = (long) *pc++;
+	int nargs = (long)*pc++;
 	if (nargs > fp->nargs)
-	    execerror(fp->sp->name, "not enough arguments");
-	return &fp->argn[nargs - fp->nargs].val;
+		execerror(fp->sp->name, "not enough arguments");
+	// printf("nargs %d : %lf\n", nargs, fp->argstackp[-nargs].val);
+	return &fp->argstackp[-nargs].val;
 }
 
-void arg(void) 	/* push argument onto stack */
+void arg(void) /* push argument onto stack */
 {
 	Datum d;
 	d.val = *getarg();
 	push(d);
 }
 
-void argassign(void) 	/* store top of stack in argument */
+void argassign(void) /* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
-	push(d);	/* leave value on stack */
+	push(d); /* leave value on stack */
 	*getarg() = d.val;
 }
 
-void argaddeq(void) 	/* store top of stack in argument */
+void argaddeq(void) /* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
 	d.val = *getarg() += d.val;
-	push(d);	/* leave value on stack */
+	push(d); /* leave value on stack */
 }
 
-void argsubeq(void) 	/* store top of stack in argument */
+void argsubeq(void) /* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
 	d.val = *getarg() -= d.val;
-	push(d);	/* leave value on stack */
+	push(d); /* leave value on stack */
 }
 
-void argmuleq(void) 	/* store top of stack in argument */
+void argmuleq(void) /* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
 	d.val = *getarg() *= d.val;
-	push(d);	/* leave value on stack */
+	push(d); /* leave value on stack */
 }
 
-void argdiveq(void) 	/* store top of stack in argument */
+void argdiveq(void) /* store top of stack in argument */
 {
 	Datum d;
 	d = pop();
 	d.val = *getarg() /= d.val;
-	push(d);	/* leave value on stack */
+	push(d); /* leave value on stack */
 }
 
-void argmodeq(void) 	/* store top of stack in argument */
+void argmodeq(void) /* store top of stack in argument */
 {
 	Datum d;
 	double *x;
@@ -236,16 +266,16 @@ void argmodeq(void) 	/* store top of stack in argument */
 	/* d.val = *getarg() %= d.val; */
 	x = getarg();
 	y = *x;
-	d.val = *x = y % (long) d.val;
-	push(d);	/* leave value on stack */
+	d.val = *x = y % (long)d.val;
+	push(d); /* leave value on stack */
 }
 
-void bltin(void) 
+void bltin(void)
 {
 
 	Datum d;
 	d = pop();
-	d.val = (*(double (*)(double))*pc++)(d.val);
+	d.val = (*(double (*)(double)) * pc++)(d.val);
 	push(d);
 }
 
@@ -297,7 +327,7 @@ void mod(void)
 	d1 = pop();
 	/* d1.val %= d2.val; */
 	x = d1.val;
-	x %= (long) d2.val;
+	x %= (long)d2.val;
 	d1.val = d2.val = x;
 	push(d1);
 }
@@ -310,7 +340,7 @@ void negate(void)
 	push(d);
 }
 
-void verify(Symbol* s)
+void verify(Symbol *s)
 {
 	if (s->type != VAR && s->type != UNDEF)
 		execerror("attempt to evaluate non-variable", s->name);
@@ -318,7 +348,7 @@ void verify(Symbol* s)
 		execerror("undefined variable", s->name);
 }
 
-void eval(void)		/* evaluate variable on stack */
+void eval(void) /* evaluate variable on stack */
 {
 	Datum d;
 	d = pop();
@@ -423,7 +453,7 @@ void ne(void)
 	push(d1);
 }
 
-void and(void)
+void and (void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -432,7 +462,7 @@ void and(void)
 	push(d1);
 }
 
-void or(void)
+void or (void)
 {
 	Datum d1, d2;
 	d2 = pop();
@@ -465,7 +495,7 @@ void assign(void)
 	d2 = pop();
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
-			d1.sym->name);
+				  d1.sym->name);
 	d1.sym->u.val = d2.val;
 	d1.sym->type = VAR;
 	push(d2);
@@ -478,7 +508,7 @@ void addeq(void)
 	d2 = pop();
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
-			d1.sym->name);
+				  d1.sym->name);
 	d2.val = d1.sym->u.val += d2.val;
 	d1.sym->type = VAR;
 	push(d2);
@@ -491,7 +521,7 @@ void subeq(void)
 	d2 = pop();
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
-			d1.sym->name);
+				  d1.sym->name);
 	d2.val = d1.sym->u.val -= d2.val;
 	d1.sym->type = VAR;
 	push(d2);
@@ -504,7 +534,7 @@ void muleq(void)
 	d2 = pop();
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
-			d1.sym->name);
+				  d1.sym->name);
 	d2.val = d1.sym->u.val *= d2.val;
 	d1.sym->type = VAR;
 	push(d2);
@@ -517,7 +547,7 @@ void diveq(void)
 	d2 = pop();
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
-			d1.sym->name);
+				  d1.sym->name);
 	d2.val = d1.sym->u.val /= d2.val;
 	d1.sym->type = VAR;
 	push(d2);
@@ -531,19 +561,19 @@ void modeq(void)
 	d2 = pop();
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
-			d1.sym->name);
+				  d1.sym->name);
 	/* d2.val = d1.sym->u.val %= d2.val; */
 	x = d1.sym->u.val;
-	x %= (long) d2.val;
+	x %= (long)d2.val;
 	d2.val = d1.sym->u.val = x;
 	d1.sym->type = VAR;
 	push(d2);
 }
 
-void printtop(void)	/* pop top value from stack, print it */
+void printtop(void) /* pop top value from stack, print it */
 {
 	Datum d;
-	static Symbol *s;	/* last value computed */
+	static Symbol *s; /* last value computed */
 	if (s == 0)
 		s = install("_", VAR, 0.0);
 	d = pop();
@@ -551,25 +581,26 @@ void printtop(void)	/* pop top value from stack, print it */
 	s->u.val = d.val;
 }
 
-void prexpr(void)	/* print numeric value */
+void prexpr(void) /* print numeric value */
 {
 	Datum d;
 	d = pop();
 	printf("%.*g ", (int)lookup("PREC")->u.val, d.val);
 }
 
-void prstr(void)		/* print string value */ 
+void prstr(void) /* print string value */
 {
-	printf("%s", (char *) *pc++);
+	printf("%s", (char *)*pc++);
 }
 
-void varread(void)	/* read into variable */
+void varread(void) /* read into variable */
 {
 	Datum d;
 	extern FILE *fin;
-	Symbol *var = (Symbol *) *pc++;
-  Again:
-	switch (fscanf(fin, "%lf", &var->u.val)) {
+	Symbol *var = (Symbol *)*pc++;
+Again:
+	switch (fscanf(fin, "%lf", &var->u.val))
+	{
 	case EOF:
 		if (moreinput())
 			goto Again;
@@ -586,7 +617,7 @@ void varread(void)	/* read into variable */
 	push(d);
 }
 
-Inst* code(Inst f)	/* install one instruction or operand */
+Inst *code(Inst f) /* install one instruction or operand */
 {
 	Inst *oprogp = progp;
 	if (progp >= &prog[NPROG])
@@ -595,8 +626,8 @@ Inst* code(Inst f)	/* install one instruction or operand */
 	return oprogp;
 }
 
-void execute(Inst* p)
+void execute(Inst *p)
 {
-	for (pc = p; *pc != STOP && !returning; )
+	for (pc = p; *pc != STOP && !returning;)
 		(*((++pc)[-1]))();
 }
