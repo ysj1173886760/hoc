@@ -34,15 +34,17 @@ class Tester:
         res_data = res.read()
         if (res_data == stdout_data):
             print("{} test passed".format(testName))
+            return True
         else:
             print("{} test failed \ngot:\n{}\nexpecting:\n{}\n".format(testName, stdout_data.decode("utf-8"), res_data.decode("utf-8")))
+            return False
         
         return True
     
     def run(self):
         res = True
         for testName in self.testList:
-            res = self.runTest(testName) or res
+            res = self.runTest(testName) and res
 
         if res:
             print("All test passed!!!!")
