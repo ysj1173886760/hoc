@@ -1,8 +1,8 @@
 YFLAGS = -d
 CFLAGS = -g
 
-SRC = hoc.y hoc.h code.c init.c math.c symbol.c
-OBJS = hoc.o code.o init.o math.o symbol.o
+SRC = hoc.y hoc.h code.c init.c math.c symbol.c hashmap.c
+OBJS = hoc.o code.o init.o math.o symbol.o hashmap.o
 
 hoc:	$(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -lm -o hoc
