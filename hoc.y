@@ -8,7 +8,7 @@
 int	indef;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 0;
+int debugLevel = 1;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -311,7 +311,11 @@ void printProg(Inst *start) {
 			else {
 				Symbol *sp = lookupThoughAddress((Symbol *)(*cur));
 				if (sp) {
-					printf("%s", sp->name);
+					if (strcmp(sp->name, "") == 0) {
+						printf("%lf", sp->u.val);
+					} else {
+						printf("%s", sp->name);
+					}
 				}
 			}
 
