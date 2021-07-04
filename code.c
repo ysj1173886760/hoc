@@ -16,6 +16,8 @@ Inst *pc;			   /* program counter during execution */
 Inst *progbase = prog; /* start of current subprogram */
 int returning;		   /* 1 if return stmt seen */
 
+int execDepth;
+
 extern int indef;	   /* 1 if parsing a func or proc */
 extern int debugLevel;
 extern int debugFlag;
@@ -38,6 +40,10 @@ void debugC(int flag, int level, const char *format, ...) {
 	char buf[1024] = {0};
 
 	if (debugLevel >= level && (debugFlag & flag) != 0) {
+		if (flag == hocExec)
+			for (int i = 0; i < execDepth; i++)
+				printf("\t");
+
 		va_start(va, format);
 		vsprintf(buf, format, va);
 		va_end(va);
@@ -662,8 +668,12 @@ Inst *code(Inst f) /* install one instruction or operand */
 
 void execute(Inst *p)
 {
-	debugC(hocExec, 4, "Executing from %p\n", p);
+	debugC(hocExec, 4, "Executing from %ld\n", p - progbase);
+
+	execDepth++;
 	for (pc = p; *pc != STOP && !returning;)
 		(*((++pc)[-1]))();
-	debugC(hocExec, 4, "Executing ended at %p, starting from %p\n", pc, p);
+	execDepth--;
+
+	debugC(hocExec, 4, "Executing ended at %ld, starting from %ld\n", pc - progbase, p - progbase);
 }
