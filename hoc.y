@@ -303,12 +303,70 @@ void printProg(Inst *start) {
 	if ((debugFlag & hocCompile) != 0 && debugLevel >= 1) {
 		printf("\nPrinting the Program\n");
 		for (Inst *cur = start; cur != progp; cur++) {
-			printf("%p\t", *cur);
+			printf("%ld\t%-16p\t", cur - start, *cur);
+
+			if (*cur == 0) {
+				printf("STOP\n");
+				continue;
+			}
 
 			char *code = getCodeThoughAddress(*cur);
-			if (code)
+			if (code) {
 				printf("%s", code);
-			else {
+				
+				// translate the loop and branch code
+				if (strcmp(code, "ifcode") == 0) {
+					printf("\n");
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("then: %ld\n", (Inst *)*cur - start);
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("else: ");
+					if (*cur) {
+						printf("%ld\n", (Inst *)*cur - start);
+					} else {
+						printf("%-16p\n", *cur);
+					}
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("end: %ld", (Inst *)*cur - start);
+
+				} else if (strcmp(code, "whilecode") == 0) {
+					printf("\n");
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("body of loop: %ld\n", (Inst *)*cur - start);
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("end: %ld", (Inst *)*cur - start);
+
+				} else if (strcmp(code, "forcode") == 0) {
+					printf("\n");
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("condition: %ld\n", (Inst *)*cur - start);
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("post loop: %ld\n", (Inst *)*cur - start);
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("body of loop: %ld\n", (Inst *)*cur - start);
+
+					cur++;
+					printf("%ld\t%-16p\t", cur - start, *cur);
+					printf("end: %ld", (Inst *)*cur - start);
+
+				}
+			} else {
 				Symbol *sp = lookupThoughAddress((Symbol *)(*cur));
 				if (sp) {
 					if (strcmp(sp->name, "") == 0) {
@@ -329,6 +387,7 @@ void run(void)	/* execute until EOF */
 	Inst *start = progbase;
 	setjmp(begin);
 	for (initcode(); yyparse(); initcode()) {
+		printProg(progbase);
 		execute(progbase);
 	}
 	printProg(start);
