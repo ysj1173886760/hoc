@@ -2,6 +2,7 @@
 #include "y.tab.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define NSTACK 256
@@ -18,16 +19,13 @@ int returning;		   /* 1 if return stmt seen */
 
 int execDepth;
 
-extern int indef;	   /* 1 if parsing a func or proc */
 extern int debugLevel;
 extern int debugFlag;
 
 typedef struct Frame
 {						 /* proc/func call stack frame */
-	Symbol *sp;			 /* symbol table entry */
 	Inst *retpc;		 /* where to resume after return */
-	ArgDatum *argn;		 /* n-th argument on stack */
-	ArgDatum *argstackp; /* a pointer to argstack top , just like stackp */
+	Symbol *varList;
 	long nargs;			 /* number of arguments */
 } Frame;
 #define NFRAME 100
@@ -64,13 +62,22 @@ void debug(int level, const char *format, ...) {
 	printf("%s", buf);
 }
 
+Symbol *parseVar(Symbol *name_sp) {
+	Symbol *sp;
+	if (fp == frame) {
+		sp = lookup(globalSymbolList, name_sp->name);
+	} else {
+		sp = lookup(fp->varList, name_sp->name);
+	}
+	return sp;
+}
+
 void initcode(void)
 {
 	progp = progbase;
 	stackp = stack;
 	fp = frame;
 	returning = 0;
-	indef = 0;
 }
 
 void push(Datum d)
@@ -87,21 +94,6 @@ Datum pop(void)
 	return *--stackp;
 }
 
-void argpush(ArgDatum d)
-{
-	if (fp->argstackp >= fp->argn + NSTACK)
-		execerror("argstack too deep", 0);
-	*fp->argstackp++ = d;
-	// printf("size : %ld\n", fp->argstackp - fp->argn);
-}
-
-ArgDatum argpop(void)
-{
-	if (fp->argstackp == fp->argn)
-		execerror("argstack underflow", 0);
-	return *--fp->argstackp;
-}
-
 void xpop(void) /* for when no value is wanted */
 {
 	if (stackp == stack)
@@ -112,14 +104,18 @@ void xpop(void) /* for when no value is wanted */
 void constpush(void)
 {
 	Datum d;
-	d.val = ((Symbol *)*pc++)->u.val;
+	d.val = *(((Symbol *)*pc++)->u.objPtr->u.numberVal);
 	push(d);
 }
 
 void varpush(void)
 {
 	Datum d;
-	d.sym = (Symbol *)(*pc++);
+	Symbol *sp = (Symbol *)(*pc++);
+	Symbol *var = parseVar(sp);
+
+	d.sym = var;
+
 	push(d);
 }
 
@@ -180,38 +176,84 @@ void ifcode(void)
 		pc = *((Inst **)(savepc + 2)); /* next stmt */
 }
 
-void define(Symbol *sp) /* put func/proc in symbol table */
+void defineBegin(Symbol *sp) /* put func/proc in symbol table */
 {
-	sp->u.defn = progbase; /* start of code */
+	Object *newObject = (Object *)emalloc(sizeof(Object));
+	newObject->type = FUNCTION;
+
+	Info *newFuncInfo = (Info *)emalloc(sizeof(Info));
+	newFuncInfo->argBegin = 0;
+	newFuncInfo->paras = 0;
+	newFuncInfo->defn = 0;
+	newFuncInfo->nargs = 0;
+
+	newObject->u.funcInfo = newFuncInfo;
+	curDefiningFunction = newFuncInfo;
+
+	sp->u.objPtr = newObject;
+}
+
+void defineEnd(Symbol *sp) {
+	curDefiningFunction->defn = progbase;
 	progbase = progp;	   /* next code starts here */
+}
+
+void setArg(int narg) {
+	curDefiningFunction->argBegin = curDefiningFunction->paras;
+	curDefiningFunction->nargs = narg;
+} 
+
+void globalBinding() {
+	Symbol *sp = ((Symbol *)*pc++);
+	Symbol *var = lookup(fp->varList, sp->name);
+	Symbol *globalVar = lookup(globalSymbolList, sp->name);
+	if (!globalVar)
+		execerror(var->name, "can not find global one");
+	var->u.objPtr = globalVar->u.objPtr;
 }
 
 void call(void) /* call a function */
 {
-	Symbol *sp = (Symbol *)pc[0]; /* symbol table entry */
+	Symbol *name_sp = (Symbol *)pc[0]; /* symbol table entry */
 								  /* for function */
+	Symbol *sp = parseVar(name_sp);
+	if (sp->u.objPtr == 0 || sp->u.objPtr->type != FUNCTION)
+		execerror(sp->name, "not a function object");
 	if (fp++ >= &frame[NFRAME - 1])
 		execerror(sp->name, "call nested too deeply");
-	fp->sp = sp;
+
+	Info *funcInfo = sp->u.objPtr->u.funcInfo;
 	fp->nargs = (long)pc[1];
+	if (funcInfo->nargs != fp->nargs)
+		execerror(sp->name, "args not match");
+
 	fp->retpc = pc + 2;
-	// TODO : 1 2 4 8 动态增加内存
-	fp->argn = (ArgDatum *)emalloc(sizeof(ArgDatum) * NSTACK);
-	fp->argstackp = fp->argn;
 
-	debugC(hocExec, 1, "calling %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
-	debugC(hocExec, 5, "entry address %p  return address %p\n", sp->u.defn, fp->retpc);
+	// debugC(hocExec, 1, "calling %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
+	// debugC(hocExec, 5, "entry address %p  return address %p\n", sp->u.defn, fp->retpc);
 
-	int tmp_nargs = fp->nargs;
-	while (tmp_nargs--)
-	{
-		Datum tmp_d = pop();
-		ArgDatum tmp_arg;
-		tmp_arg.val = tmp_d.val;
-		argpush(tmp_arg);
+	// instantiate the variables
+	for (Symbol *cur = funcInfo->paras; cur != funcInfo->argBegin; cur = cur->next) {
+		if (strcmp(cur->name, "") != 0) {
+			fp->varList = install(fp->varList, cur->name, VAR, 0.0);
+		}
+	}
+	// bind the args, currently, we can only bind the numbers, this should be amend to bind the object directly
+	for (Symbol *cur = funcInfo->argBegin; cur != 0; cur = cur->next) {
+		Datum d = pop();
+		if (strcmp(cur->name, "") != 0) {
+			fp->varList = install(fp->varList, cur->name, VAR, 0.0);
+
+			// this part should be fixed
+			Object *newObj = (Object *)emalloc(sizeof(Object));
+			newObj->type = NUMBER;
+			newObj->u.numberVal = (double *)emalloc(sizeof(Object));
+			*(newObj->u.numberVal) = d.val;
+			fp->varList->u.objPtr = newObj;
+		}
 	}
 
-	execute(sp->u.defn);
+	execute(funcInfo->defn);
 	returning = 0;
 }
 
@@ -226,8 +268,8 @@ static void ret(void) /* common return from func or proc */
 void funcret(void) /* return from a function */
 {
 	Datum d;
-	if (fp->sp->type == PROCEDURE)
-		execerror(fp->sp->name, "(proc) returns value");
+	// if (fp->sp->type == PROCEDURE)
+	// 	execerror(fp->sp->name, "(proc) returns value");
 	d = pop(); /* preserve function return value */
 	ret();
 	push(d);
@@ -235,79 +277,9 @@ void funcret(void) /* return from a function */
 
 void procret(void) /* return from a procedure */
 {
-	if (fp->sp->type == FUNCTION)
-		execerror(fp->sp->name,
-				  "(func) returns no value");
+	// if (fp->sp->type == FUNCTION)
+	// 	execerror(fp->sp->name, "(func) returns no value");
 	ret();
-}
-
-double *getarg(void) /* return pointer to argument */
-{
-	int nargs = (long)*pc++;
-	if (nargs > fp->nargs)
-		execerror(fp->sp->name, "not enough arguments");
-	// printf("nargs %d : %lf\n", nargs, fp->argstackp[-nargs].val);
-	return &fp->argstackp[-nargs].val;
-}
-
-void arg(void) /* push argument onto stack */
-{
-	Datum d;
-	d.val = *getarg();
-	push(d);
-}
-
-void argassign(void) /* store top of stack in argument */
-{
-	Datum d;
-	d = pop();
-	push(d); /* leave value on stack */
-	*getarg() = d.val;
-}
-
-void argaddeq(void) /* store top of stack in argument */
-{
-	Datum d;
-	d = pop();
-	d.val = *getarg() += d.val;
-	push(d); /* leave value on stack */
-}
-
-void argsubeq(void) /* store top of stack in argument */
-{
-	Datum d;
-	d = pop();
-	d.val = *getarg() -= d.val;
-	push(d); /* leave value on stack */
-}
-
-void argmuleq(void) /* store top of stack in argument */
-{
-	Datum d;
-	d = pop();
-	d.val = *getarg() *= d.val;
-	push(d); /* leave value on stack */
-}
-
-void argdiveq(void) /* store top of stack in argument */
-{
-	Datum d;
-	d = pop();
-	d.val = *getarg() /= d.val;
-	push(d); /* leave value on stack */
-}
-
-void argmodeq(void) /* store top of stack in argument */
-{
-	Datum d;
-	double *x;
-	long y;
-	d = pop();
-	/* d.val = *getarg() %= d.val; */
-	x = getarg();
-	y = *x;
-	d.val = *x = y % (long)d.val;
-	push(d); /* leave value on stack */
 }
 
 void bltin(void)
@@ -392,8 +364,9 @@ void eval(void) /* evaluate variable on stack */
 {
 	Datum d;
 	d = pop();
-	verify(d.sym);
-	d.val = d.sym->u.val;
+	Symbol *sp = parseVar(d.sym);
+	verify(sp);
+	d.val = *(sp->u.objPtr->u.numberVal);
 	push(d);
 }
 
@@ -402,7 +375,7 @@ void preinc(void)
 	Datum d;
 	d.sym = (Symbol *)(*pc++);
 	verify(d.sym);
-	d.val = d.sym->u.val += 1.0;
+	d.val = *(d.sym->u.objPtr->u.numberVal) += 1.0;
 	push(d);
 }
 
@@ -411,7 +384,7 @@ void predec(void)
 	Datum d;
 	d.sym = (Symbol *)(*pc++);
 	verify(d.sym);
-	d.val = d.sym->u.val -= 1.0;
+	d.val = *(d.sym->u.objPtr->u.numberVal) -= 1.0;
 	push(d);
 }
 
@@ -421,8 +394,8 @@ void postinc(void)
 	double v;
 	d.sym = (Symbol *)(*pc++);
 	verify(d.sym);
-	v = d.sym->u.val;
-	d.sym->u.val += 1.0;
+	v = *(d.sym->u.objPtr->u.numberVal);
+	*(d.sym->u.objPtr->u.numberVal) += 1.0;
 	d.val = v;
 	push(d);
 }
@@ -433,8 +406,8 @@ void postdec(void)
 	double v;
 	d.sym = (Symbol *)(*pc++);
 	verify(d.sym);
-	v = d.sym->u.val;
-	d.sym->u.val -= 1.0;
+	v = *(d.sym->u.objPtr->u.numberVal);
+	*(d.sym->u.objPtr->u.numberVal) -= 1.0;
 	d.val = v;
 	push(d);
 }
@@ -536,7 +509,17 @@ void assign(void)
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
 				  d1.sym->name);
-	d1.sym->u.val = d2.val;
+	if (d1.sym->u.objPtr) {
+		if (d1.sym->u.objPtr->type == NUMBER)
+			free(d1.sym->u.objPtr->u.numberVal);
+		free(d1.sym->u.objPtr);
+	}
+	Object *newObj = (Object *)emalloc(sizeof(Object));
+	newObj->type = NUMBER;
+	newObj->u.numberVal = (double *)emalloc(sizeof(Object));
+	d1.sym->u.objPtr = newObj;
+
+	*(d1.sym->u.objPtr->u.numberVal) = d2.val;
 	d1.sym->type = VAR;
 	push(d2);
 }
@@ -549,7 +532,7 @@ void addeq(void)
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
 				  d1.sym->name);
-	d2.val = d1.sym->u.val += d2.val;
+	// d2.val = d1.sym->u.val += d2.val;
 	d1.sym->type = VAR;
 	push(d2);
 }
@@ -562,7 +545,7 @@ void subeq(void)
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
 				  d1.sym->name);
-	d2.val = d1.sym->u.val -= d2.val;
+	// d2.val = d1.sym->u.val -= d2.val;
 	d1.sym->type = VAR;
 	push(d2);
 }
@@ -575,7 +558,7 @@ void muleq(void)
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
 				  d1.sym->name);
-	d2.val = d1.sym->u.val *= d2.val;
+	// d2.val = d1.sym->u.val *= d2.val;
 	d1.sym->type = VAR;
 	push(d2);
 }
@@ -588,7 +571,7 @@ void diveq(void)
 	if (d1.sym->type != VAR && d1.sym->type != UNDEF)
 		execerror("assignment to non-variable",
 				  d1.sym->name);
-	d2.val = d1.sym->u.val /= d2.val;
+	// d2.val = d1.sym->u.val /= d2.val;
 	d1.sym->type = VAR;
 	push(d2);
 }
@@ -603,9 +586,9 @@ void modeq(void)
 		execerror("assignment to non-variable",
 				  d1.sym->name);
 	/* d2.val = d1.sym->u.val %= d2.val; */
-	x = d1.sym->u.val;
+	// x = d1.sym->u.val;
 	x %= (long)d2.val;
-	d2.val = d1.sym->u.val = x;
+	// d2.val = d1.sym->u.val = x;
 	d1.sym->type = VAR;
 	push(d2);
 }
@@ -615,17 +598,17 @@ void printtop(void) /* pop top value from stack, print it */
 	Datum d;
 	static Symbol *s; /* last value computed */
 	if (s == 0)
-		s = install("_", VAR, 0.0);
+		s = install(globalSymbolList, "_", VAR, 0.0);
 	d = pop();
-	printf("%.*g\n", (int)lookup("PREC")->u.val, d.val);
-	s->u.val = d.val;
+	printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal), d.val);
+	// s->u.objPtrj= d.val;
 }
 
 void prexpr(void) /* print numeric value */
 {
 	Datum d;
 	d = pop();
-	printf("%.*g ", (int)lookup("PREC")->u.val, d.val);
+	printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal)), d.val);
 }
 
 void prstr(void) /* print string value */
@@ -639,18 +622,19 @@ void varread(void) /* read into variable */
 	extern FILE *fin;
 	Symbol *var = (Symbol *)*pc++;
 Again:
-	switch (fscanf(fin, "%lf", &var->u.val))
+	switch (fscanf(fin, "%lf", (var->u.objPtr->u.numberVal)))
 	{
 	case EOF:
 		if (moreinput())
 			goto Again;
-		d.val = var->u.val = 0.0;
+		// d.val = var->u.val = 0.0;
+		d.val = 0;
 		break;
 	case 0:
 		execerror("non-number read into", var->name);
 		break;
 	default:
-		d.val = var->u.val;
+		d.val = *(var->u.objPtr->u.numberVal);
 		break;
 	}
 	var->type = VAR;

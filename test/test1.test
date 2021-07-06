@@ -1,8 +1,10 @@
-func ack() {
-	n = n+1
-	if($1 == 0) return ($2+1)
-	if($2 == 0) 	 return (ack($1 - 1, 1))
-	return (ack($1 - 1, ack($1, $2 - 1)))
+func ack(a, b) {
+	global n
+	global ack
+	n = n + 1
+	if(a == 0) return (b + 1)
+	if(b == 0) 	 return (ack(a - 1, 1))
+	return (ack(a - 1, ack(a, b - 1)))
 }
 n=0
 ack(3,3)

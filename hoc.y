@@ -5,10 +5,13 @@
 #define	code3(c1,c2,c3)	code(c1); code(c2); code(c3)
 
 #define InteractiveEnv 0
-int	indef;
+
+Symbol *globalSymbolList = 0;
+Symbol *keywordList = 0;
+Info *curDefiningFunction = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 1;
+int debugLevel = 0;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -18,20 +21,18 @@ void yyerror(char* s);
 	Inst	*inst;	/* machine instruction */
 	long	narg;	/* number of arguments */
 }
-%token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE
-%token	<sym>	FUNCTION PROCEDURE RETURN FUNC PROC READ
-%token	<narg>	ARG
+%token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE FUNCTION PROCEDURE
+%token	<sym>	RETURN FUNC PROC READ GLOBAL
 %type	<inst>	expr stmt asgn prlist stmtlist
 %type	<inst>	cond while for if begin end 
-%type	<sym>	procname
-%type	<narg>	arglist
+%type	<narg>	arglist vflist
 %right	'=' ADDEQ SUBEQ MULEQ DIVEQ MODEQ
 %left	OR
 %left	AND
 %left	GT GE LT LE EQ NE
 %left	'+' '-'
 %left	'*' '/' '%'
-%left	UNARYMINUS NOT INC DEC
+%left	UNARYMINUS NOT
 %right	'^'
 %%
 list:	  /* nothing */
@@ -48,19 +49,11 @@ asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
 	| VAR MULEQ expr	{ code3(varpush,(Inst)$1,muleq); $$=$3; }
 	| VAR DIVEQ expr	{ code3(varpush,(Inst)$1,diveq); $$=$3; }
 	| VAR MODEQ expr	{ code3(varpush,(Inst)$1,modeq); $$=$3; }
-	| ARG '=' expr   { defnonly("$"); code2(argassign,(Inst)$1); $$=$3;}
-	| ARG ADDEQ expr { defnonly("$"); code2(argaddeq,(Inst)$1); $$=$3;}
-	| ARG SUBEQ expr { defnonly("$"); code2(argsubeq,(Inst)$1); $$=$3;}
-	| ARG MULEQ expr { defnonly("$"); code2(argmuleq,(Inst)$1); $$=$3;}
-	| ARG DIVEQ expr { defnonly("$"); code2(argdiveq,(Inst)$1); $$=$3;}
-	| ARG MODEQ expr { defnonly("$"); code2(argmodeq,(Inst)$1); $$=$3;}
 	;
 stmt:	  expr	{ code(xpop); }
 	| RETURN { defnonly("return"); code(procret); }
 	| RETURN expr
 	        { defnonly("return"); $$=$2; code(funcret); }
-	| PROCEDURE begin '(' arglist ')'
-		{ $$ = $2; code3(call, (Inst)$1, (Inst)$4); }
 	| PRINT prlist	{ $$ = $2; }
 	| while '(' cond ')' stmt end {
 		($1)[1] = (Inst)$5;	/* body of loop */
@@ -78,6 +71,7 @@ stmt:	  expr	{ code(xpop); }
 		($1)[2] = (Inst)$8;	/* elsepart */
 		($1)[3] = (Inst)$9; }	/* end, if cond fails */
 	| '{' stmtlist '}'	{ $$ = $2; }
+	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }	
 	;
 cond:	   expr 	{ code(STOP); }
 	;
@@ -97,9 +91,8 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| VAR	 { $$ = code3(varpush, (Inst)$1, eval); }
-	| ARG	 { defnonly("$"); $$ = code2(arg, (Inst)$1); }
 	| asgn
-	| FUNCTION begin '(' arglist ')'
+	| VAR begin '(' arglist ')'
 		{ $$ = $2; code3(call,(Inst)$1,(Inst)$4); }
 	| READ '(' VAR ')' { $$ = code2(varread, (Inst)$3); }
 	| BLTIN '(' expr ')' { $$=$3; code2(bltin, (Inst)$1->u.ptr); }
@@ -120,28 +113,24 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| expr AND expr	{ code(and); }
 	| expr OR expr	{ code(or); }
 	| NOT expr	{ $$ = $2; code(not); }
-	| INC VAR	{ $$ = code2(preinc,(Inst)$2); }
-	| DEC VAR	{ $$ = code2(predec,(Inst)$2); }
-	| VAR INC	{ $$ = code2(postinc,(Inst)$1); }
-	| VAR DEC	{ $$ = code2(postdec,(Inst)$1); }
 	;
 prlist:	  expr			{ code(prexpr); }
 	| STRING		{ $$ = code2(prstr, (Inst)$1); }
 	| prlist ',' expr	{ code(prexpr); }
 	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
 	;
-defn:	  FUNC procname { $2->type=FUNCTION; indef=1; }
-	    '(' ')' stmt { code(procret); define($2); indef=0; }
-	| PROC procname { $2->type=PROCEDURE; indef=1; }
-	    '(' ')' stmt { code(procret); define($2); indef=0; }
-	;
-procname: VAR
-	| FUNCTION
-	| PROCEDURE
+defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
+	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
+	| PROC VAR { $2->type=VAR; defineBegin($2); }
+	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
 	;
 arglist:  /* nothing */ 	{ $$ = 0; }
 	| expr			{ $$ = 1; }
 	| arglist ',' expr	{ $$ = $1 + 1; }
+	;
+vflist : /* nothing */		{ $$ = 0; }
+	| VAR { $$ = 1; }
+	| vflist ',' VAR { $$ = $1 + 1; }
 	;
 %%
 	/* end of grammar */
@@ -189,7 +178,7 @@ int yylex(void)		/* hoc6 */
 		double d;
 		ungetc(c, fin);
 		fscanf(fin, "%lf", &d);
-		yylval.sym = install("", NUMBER, d);
+		yylval.sym = install(globalSymbolList, "", NUMBER, d);
 		return NUMBER;
 	}
 	if (isalpha(c) || c == '_') {
@@ -204,20 +193,30 @@ int yylex(void)		/* hoc6 */
 		} while ((c=getc(fin)) != EOF && (isalnum(c) || c == '_'));
 		ungetc(c, fin);
 		*p = '\0';
-		if ((s=lookup(sbuf)) == 0)
-			s = install(sbuf, UNDEF, 0.0);
-		yylval.sym = s;
-		return s->type == UNDEF ? VAR : s->type;
-	}
-	if (c == '$') {	/* argument? */
-		int n = 0;
-		while (isdigit(c=getc(fin)))
-			n = 10 * n + c - '0';
-		ungetc(c, fin);
-		if (n == 0)
-			execerror("strange $...", (char *)0);
-		yylval.narg = n;
-		return ARG;
+
+		// first try the keywords
+		if ((s = lookup(keywordList, sbuf)) != 0) {
+			yylval.sym = s;
+			return s->type;
+		}
+		// if we are in the definition
+		if (curDefiningFunction != 0) {
+			Symbol *symlist = curDefiningFunction->paras;
+			if ((s=lookup(symlist, sbuf)) == 0) {
+				s = install(symlist, sbuf, UNDEF, 0.0);
+				curDefiningFunction->paras = s;
+			}
+			yylval.sym = s;
+			return s->type == UNDEF ? VAR : s->type;
+		} else {
+			if ((s=lookup(globalSymbolList, sbuf)) == 0) {
+				s = install(globalSymbolList, sbuf, UNDEF, 0.0);
+				globalSymbolList = s;
+			}
+			yylval.sym = s;
+			return s->type == UNDEF ? VAR : s->type;
+		}
+		return UNDEF;
 	}
 	if (c == '"') {	/* quoted string */
 		char sbuf[100], *p;
@@ -236,8 +235,8 @@ int yylex(void)		/* hoc6 */
 		return STRING;
 	}
 	switch (c) {
-	case '+':	return follow('+', INC, follow('=', ADDEQ, '+'));
-	case '-':	return follow('-', DEC, follow('=', SUBEQ, '-'));
+	case '+':	return follow('=', ADDEQ, '+');
+	case '-':	return follow('=', SUBEQ, '-');
 	case '*':	return follow('=', MULEQ, '*');
 	case '/':	return follow('=', DIVEQ, '/');
 	case '%':	return follow('=', MODEQ, '%');
@@ -367,10 +366,10 @@ void printProg(Inst *start) {
 
 				}
 			} else {
-				Symbol *sp = lookupThoughAddress((Symbol *)(*cur));
+				Symbol *sp = lookupThoughAddress(globalSymbolList, (Symbol *)(*cur));
 				if (sp) {
 					if (strcmp(sp->name, "") == 0) {
-						printf("%lf", sp->u.val);
+						printf("%lf", *(sp->u.objPtr->u.numberVal));
 					} else {
 						printf("%s", sp->name);
 					}
@@ -460,6 +459,6 @@ void warning(char *s, char *t)	/* print warning message */
 
 void defnonly(char *s)	/* warn if illegal definition */
 {
-	if (!indef)
+	if (curDefiningFunction == 0)
 		execerror(s, "used outside definition");
 }

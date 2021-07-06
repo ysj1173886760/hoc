@@ -15,6 +15,7 @@ static struct {		/* Keywords */
 	"for",		FOR,
 	"print",	PRINT,
 	"read",		READ,
+	"global",	GLOBAL,
 	0,		0,
 };
 
@@ -69,13 +70,6 @@ static struct {
 	{"ifcode",		ifcode},
 	{"funcret",		funcret},
 	{"procret",		procret},
-	{"arg", 		arg},
-	{"argassign",	argassign},
-	{"argaddeq",	argaddeq},
-	{"argsubeq",	argsubeq},
-	{"argmuleq",	argmuleq},
-	{"argdiveq",	argdiveq},
-	{"argmodeq",	argmodeq},
 	{"bltin",		bltin},
 	{"add",			add},
 	{"sub",			sub},
@@ -116,11 +110,19 @@ void init(void)	/* install constants and built-ins in table */
 	int i;
 	Symbol *s;
 	for (i = 0; keywords[i].name; i++)
-		install(keywords[i].name, keywords[i].kval, 0.0);
-	for (i = 0; consts[i].name; i++)
-		install(consts[i].name, VAR, consts[i].cval);
+		keywordList = install(keywordList, keywords[i].name, keywords[i].kval, 0.0);
+	for (i = 0; consts[i].name; i++) {
+		keywordList = install(keywordList, consts[i].name, VAR, 0.0);
+		
+		Object *newObj = (Object *)emalloc(sizeof(Object));
+		newObj->type = NUMBER;
+		newObj->u.numberVal = (double *)emalloc(sizeof(Object));
+		*(newObj->u.numberVal) = consts[i].cval;
+		keywordList->u.objPtr = newObj;
+	}
 	for (i = 0; builtins[i].name; i++) {
-		s = install(builtins[i].name, BLTIN, 0.0);
+		s = install(keywordList, builtins[i].name, BLTIN, 0.0);
+		keywordList = s;
 		s->u.ptr = builtins[i].func;
 	}
 }
