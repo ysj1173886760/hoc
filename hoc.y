@@ -19,12 +19,12 @@ void yyerror(char* s);
 	long	narg;	/* number of arguments */
 }
 %token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE
-%token	<sym>	FUNCTION PROCEDURE RETURN FUNC PROC READ
+%token	<sym>	FUNCTION PROCEDURE RETURN FUNC PROC READ VF GLOBAL
 %token	<narg>	ARG
 %type	<inst>	expr stmt asgn prlist stmtlist
 %type	<inst>	cond while for if begin end 
 %type	<sym>	procname
-%type	<narg>	arglist
+%type	<narg>	arglist vflist
 %right	'=' ADDEQ SUBEQ MULEQ DIVEQ MODEQ
 %left	OR
 %left	AND
@@ -42,6 +42,7 @@ list:	  /* nothing */
 	| list expr '\n'  { code2(printtop, STOP); return 1; }
 	| list error '\n' { yyerrok; }
 	;
+// TODO : check other VF xx expr
 asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
 	| VAR ADDEQ expr	{ code3(varpush,(Inst)$1,addeq); $$=$3; }
 	| VAR SUBEQ expr	{ code3(varpush,(Inst)$1,subeq); $$=$3; }
@@ -54,6 +55,12 @@ asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
 	| ARG MULEQ expr { defnonly("$"); code2(argmuleq,(Inst)$1); $$=$3;}
 	| ARG DIVEQ expr { defnonly("$"); code2(argdiveq,(Inst)$1); $$=$3;}
 	| ARG MODEQ expr { defnonly("$"); code2(argmodeq,(Inst)$1); $$=$3;}
+	| VF '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
+	| VF ADDEQ expr	{ code3(varpush,(Inst)$1,addeq); $$=$3; }
+	| VF SUBEQ expr	{ code3(varpush,(Inst)$1,subeq); $$=$3; }
+	| VF MULEQ expr	{ code3(varpush,(Inst)$1,muleq); $$=$3; }
+	| VF DIVEQ expr	{ code3(varpush,(Inst)$1,diveq); $$=$3; }
+	| VF MODEQ expr	{ code3(varpush,(Inst)$1,modeq); $$=$3; }
 	;
 stmt:	  expr	{ code(xpop); }
 	| RETURN { defnonly("return"); code(procret); }
@@ -77,6 +84,7 @@ stmt:	  expr	{ code(xpop); }
 		($1)[1] = (Inst)$5;	/* thenpart */
 		($1)[2] = (Inst)$8;	/* elsepart */
 		($1)[3] = (Inst)$9; }	/* end, if cond fails */
+	| GLOBAL VF	{ getVF_type($2); }		// 将局部变量转化为全局变量
 	| '{' stmtlist '}'	{ $$ = $2; }
 	;
 cond:	   expr 	{ code(STOP); }
@@ -98,6 +106,7 @@ stmtlist: /* nothing */		{ $$ = progp; }
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| VAR	 { $$ = code3(varpush, (Inst)$1, eval); }
 	| ARG	 { defnonly("$"); $$ = code2(arg, (Inst)$1); }
+	| VF	{ $$ = code2(vf, (Inst)$1); }
 	| asgn
 	| FUNCTION begin '(' arglist ')'
 		{ $$ = $2; code3(call,(Inst)$1,(Inst)$4); }
@@ -130,10 +139,10 @@ prlist:	  expr			{ code(prexpr); }
 	| prlist ',' expr	{ code(prexpr); }
 	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
 	;
-defn:	  FUNC procname { $2->type=FUNCTION; indef=1; }
-	    '(' ')' stmt { code(procret); define($2); indef=0; }
-	| PROC procname { $2->type=PROCEDURE; indef=1; }
-	    '(' ')' stmt { code(procret); define($2); indef=0; }
+defn:	  FUNC procname { $2->type=FUNCTION; indef=1; Infopush($2); }
+	    '(' vflist ')' { getInfo_nargs($5); } stmt { code(procret); define($2); indef=0; ++Infostackp; }
+	| PROC procname { $2->type=PROCEDURE; indef=1; Infopush($2); }
+	    '(' vflist ')' { getInfo_nargs($5); } stmt { code(procret); define($2); indef=0; ++Infostackp; }
 	;
 procname: VAR
 	| FUNCTION
@@ -142,6 +151,10 @@ procname: VAR
 arglist:  /* nothing */ 	{ $$ = 0; }
 	| expr			{ $$ = 1; }
 	| arglist ',' expr	{ $$ = $1 + 1; }
+	;
+vflist : /* nothing */		{ $$ = 0; }
+	| VF			{ $$ = 1; }
+	| vflist ',' VF		{ $$ = $1 + 1; }
 	;
 %%
 	/* end of grammar */
@@ -156,7 +169,7 @@ jmp_buf	begin;
 char	*infile;	/* input file name */
 FILE	*fin;		/* input file pointer */
 char	**gargv;	/* global argument list */
-extern	errno;
+extern int errno;
 int	gargc;
 
 int c = '\n';	/* global for use by warning() */
@@ -164,6 +177,9 @@ int c = '\n';	/* global for use by warning() */
 int	backslash(int), follow(int, int, int);
 void defnonly(char*), run(void);
 void warning(char*, char*);
+
+extern Info Infostack[MAX];
+extern Info *Infostackp; // pointer to current func/proc info
 
 int yylex(void)		/* hoc6 */
 {
@@ -189,7 +205,7 @@ int yylex(void)		/* hoc6 */
 		double d;
 		ungetc(c, fin);
 		fscanf(fin, "%lf", &d);
-		yylval.sym = install("", NUMBER, d);
+		yylval.sym = install_global("", NUMBER, d);
 		return NUMBER;
 	}
 	if (isalpha(c) || c == '_') {
@@ -204,10 +220,18 @@ int yylex(void)		/* hoc6 */
 		} while ((c=getc(fin)) != EOF && (isalnum(c) || c == '_'));
 		ungetc(c, fin);
 		*p = '\0';
-		if ((s=lookup(sbuf)) == 0)
-			s = install(sbuf, UNDEF, 0.0);
+		// lookup_global or lookup_para 用indef区分
+		if ((s = lookup_key(sbuf)) == 0) {
+			if (indef == 0 && (s=lookup_global(sbuf)) == 0) {
+				s = install_global(sbuf, UNDEF, 0.0);
+			}
+			else if (indef == 1 && (s=lookup_para(Infostackp, sbuf)) == 0) {
+				s = install_para(Infostackp, sbuf, UNDEF, 0.0);
+			}
+		}
 		yylval.sym = s;
-		return s->type == UNDEF ? VAR : s->type;
+		// printf("indef : %d, type : %ld, name : %s\n", indef, s->type, s->name);
+		return s->type == UNDEF ? (indef == 0 ? VAR : VF) : s->type;
 	}
 	if (c == '$') {	/* argument? */
 		int n = 0;
@@ -236,19 +260,19 @@ int yylex(void)		/* hoc6 */
 		return STRING;
 	}
 	switch (c) {
-	case '+':	return follow('+', INC, follow('=', ADDEQ, '+'));
-	case '-':	return follow('-', DEC, follow('=', SUBEQ, '-'));
-	case '*':	return follow('=', MULEQ, '*');
-	case '/':	return follow('=', DIVEQ, '/');
-	case '%':	return follow('=', MODEQ, '%');
-	case '>':	return follow('=', GE, GT);
-	case '<':	return follow('=', LE, LT);
-	case '=':	return follow('=', EQ, '=');
-	case '!':	return follow('=', NE, NOT);
-	case '|':	return follow('|', OR, '|');
-	case '&':	return follow('&', AND, '&');
-	case '\n':	lineno++; return '\n';
-	default:	return c;
+		case '+':	return follow('+', INC, follow('=', ADDEQ, '+'));
+		case '-':	return follow('-', DEC, follow('=', SUBEQ, '-'));
+		case '*':	return follow('=', MULEQ, '*');
+		case '/':	return follow('=', DIVEQ, '/');
+		case '%':	return follow('=', MODEQ, '%');
+		case '>':	return follow('=', GE, GT);
+		case '<':	return follow('=', LE, LT);
+		case '=':	return follow('=', EQ, '=');
+		case '!':	return follow('=', NE, NOT);
+		case '|':	return follow('|', OR, '|');
+		case '&':	return follow('&', AND, '&');
+		case '\n':	lineno++; return '\n';
+		default:	return c;
 	}
 }
 
@@ -367,7 +391,7 @@ void printProg(Inst *start) {
 
 				}
 			} else {
-				Symbol *sp = lookupThoughAddress((Symbol *)(*cur));
+				Symbol *sp = lookup_global_ThoughAddress((Symbol *)(*cur));
 				if (sp) {
 					if (strcmp(sp->name, "") == 0) {
 						printf("%lf", sp->u.val);
