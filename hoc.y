@@ -11,7 +11,7 @@ Symbol *keywordList = 0;
 Info *curDefiningFunction = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 0;
+int debugLevel = 1;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -24,7 +24,7 @@ void yyerror(char* s);
 %token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE FUNCTION PROCEDURE
 %token	<sym>	RETURN FUNC PROC READ GLOBAL
 %type	<inst>	expr stmt asgn prlist stmtlist
-%type	<inst>	cond while for if begin end 
+%type	<inst>	cond while for if begin end
 %type	<narg>	arglist vflist
 %right	'=' ADDEQ SUBEQ MULEQ DIVEQ MODEQ
 %left	OR
@@ -51,9 +51,9 @@ asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
 	| VAR MODEQ expr	{ code3(varpush,(Inst)$1,modeq); $$=$3; }
 	;
 stmt:	  expr	{ code(xpop); }
-	| RETURN { defnonly("return"); code(procret); }
+	| RETURN { defnonly("return"); code(ret); }
 	| RETURN expr
-	        { defnonly("return"); $$=$2; code(funcret); }
+	        { defnonly("return"); $$=$2; code(ret); }
 	| PRINT prlist	{ $$ = $2; }
 	| while '(' cond ')' stmt end {
 		($1)[1] = (Inst)$5;	/* body of loop */
@@ -90,7 +90,7 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	| stmtlist stmt
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
-	| VAR	 { $$ = code3(varpush, (Inst)$1, eval); }
+	| VAR	 { $$ = code2(valpush, (Inst)$1); }
 	| asgn
 	| VAR begin '(' arglist ')'
 		{ $$ = $2; code3(call,(Inst)$1,(Inst)$4); }
@@ -120,9 +120,9 @@ prlist:	  expr			{ code(prexpr); }
 	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
-	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
+	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
 	| PROC VAR { $2->type=VAR; defineBegin($2); }
-	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
+	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
 	;
 arglist:  /* nothing */ 	{ $$ = 0; }
 	| expr			{ $$ = 1; }

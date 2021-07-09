@@ -3,16 +3,19 @@ typedef void (*Inst)(void);
 
 typedef struct Symbol Symbol;
 
-typedef struct Info {
+typedef struct Info
+{
 	Symbol *paras; //局部变量起始位置
 	int nargs;	   //传入参数的个数
 	Symbol *argBegin;
-	Inst *defn;	   // code指令起始位置
+	Inst *defn; // code指令起始位置
 } Info;
 
-typedef struct Object {
+typedef struct Object
+{
 	long type;
-	union {
+	union
+	{
 		double *numberVal;
 		Info *funcInfo;
 	} u;
@@ -24,7 +27,7 @@ typedef struct Symbol
 	long type;
 	union
 	{
-		Object *objPtr;			   /* VAR */
+		Object *objPtr;		   /* VAR */
 		double (*ptr)(double); /* BLTIN */
 		char *str;			   /* STRING */
 	} u;
@@ -34,15 +37,21 @@ typedef struct Symbol
 Symbol *install(Symbol *, char *, int, double);
 Symbol *lookup(Symbol *, char *);
 
-typedef union Datum
+typedef struct Datum
 { /* interpreter stack type */
-	double val;
-	Symbol *sym;
+	// double val;
+	int setflag; // obj = 0, sym = 1
+	union
+	{
+		Object *obj;
+		Symbol *sym;
+	} u;
 } Datum;
 
-enum DebugFlag {
-	hocCompile	= 1 << 0,
-	hocExec		= 1 << 1
+enum DebugFlag
+{
+	hocCompile = 1 << 0,
+	hocExec = 1 << 1
 };
 
 extern Symbol *globalSymbolList;
@@ -50,7 +59,7 @@ extern Info *curDefiningFunction;
 extern Symbol *keywordList;
 
 extern char *getCodeThoughAddress(Inst inst);
-extern Symbol* lookupThoughAddress(Symbol *symList, Symbol *p);
+extern Symbol *lookupThoughAddress(Symbol *symList, Symbol *p);
 
 extern double Fgetd(int);
 extern int moreinput(void);
@@ -60,7 +69,7 @@ extern void defineEnd(Symbol *);
 extern Datum pop(void);
 extern void initcode(void), push(Datum), xpop(void), constpush(void);
 extern void varpush(void);
-extern void eval(void), add(void), sub(void), mul(void), divop(void), mod(void);
+extern void add(void), sub(void), mul(void), divop(void), mod(void);
 extern void negate(void), power(void);
 extern void addeq(void), subeq(void), muleq(void), diveq(void), modeq(void);
 
@@ -73,8 +82,8 @@ extern void gt(void), lt(void), eq(void), ge(void), le(void), ne(void);
 extern void and (void), or (void), not(void);
 extern void ifcode(void), whilecode(void), forcode(void);
 extern void call(void);
-extern void funcret(void), procret(void);
-extern void preinc(void), predec(void), postinc(void), postdec(void);
+// extern void funcret(void), procret(void);
+// extern void preinc(void), predec(void), postinc(void), postdec(void);
 extern void execute(Inst *);
 extern void printtop(void);
 
@@ -90,3 +99,9 @@ extern void *emalloc(unsigned);
 
 extern void defnonly(char *);
 extern void warning(char *s, char *t);
+
+extern Datum double2Datum(double);
+extern double valpop(void);
+extern Symbol *parseVar(Symbol *);
+extern void ret(void);
+extern void valpush(void);
