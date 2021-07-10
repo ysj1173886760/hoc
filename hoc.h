@@ -14,9 +14,10 @@ typedef struct Info
 typedef struct Object
 {
 	long type;
+	int size;
 	union
 	{
-		double *numberVal;
+		double *valuelist;
 		Info *funcInfo;
 	} u;
 } Object;
@@ -67,7 +68,7 @@ extern void execerror(char *, char *);
 extern void defineBegin(Symbol *), verify(Symbol *);
 extern void defineEnd(Symbol *);
 extern Datum pop(void);
-extern void initcode(void), push(Datum), xpop(void), constpush(void);
+extern void initcode(void), push(Datum), xpop(void), constpush(void), listpush(void);
 extern void varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
 extern void negate(void), power(void);
@@ -101,7 +102,9 @@ extern void defnonly(char *);
 extern void warning(char *s, char *t);
 
 extern Datum double2Datum(double);
-extern double valpop(void);
+extern double *valpop(void);
 extern Symbol *parseVar(Symbol *);
 extern void ret(void);
 extern void valpush(void);
+
+extern void test(void);

@@ -123,8 +123,8 @@ void init(void) /* install constants and built-ins in table */
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = NUMBER;
-		newObj->u.numberVal = (double *)emalloc(sizeof(Object));
-		*(newObj->u.numberVal) = consts[i].cval;
+		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
+		*(newObj->u.valuelist) = consts[i].cval;
 		keywordList->u.objPtr = newObj;
 	}
 	for (i = 0; builtins[i].name; i++)

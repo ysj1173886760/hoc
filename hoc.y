@@ -21,11 +21,11 @@ void yyerror(char* s);
 	Inst	*inst;	/* machine instruction */
 	long	narg;	/* number of arguments */
 }
-%token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE FUNCTION PROCEDURE
-%token	<sym>	RETURN FUNC PROC READ GLOBAL
+%token	<sym>	NUMBER LIST STRING PRINT VAR BLTIN UNDEF FUNCTION
+%token	<sym>	RETURN FUNC PROC READ GLOBAL WHILE FOR IF ELSE
 %type	<inst>	expr stmt asgn prlist stmtlist
 %type	<inst>	cond while for if begin end
-%type	<narg>	arglist vflist
+%type	<narg>	arglist vflist valuelist
 %right	'=' ADDEQ SUBEQ MULEQ DIVEQ MODEQ
 %left	OR
 %left	AND
@@ -71,7 +71,8 @@ stmt:	  expr	{ code(xpop); }
 		($1)[2] = (Inst)$8;	/* elsepart */
 		($1)[3] = (Inst)$9; }	/* end, if cond fails */
 	| '{' stmtlist '}'	{ $$ = $2; }
-	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }	
+	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }
+	// | VAR '.' VAR '(' valuelist ')' { code2(oprcheck, (Inst)$1); code2((Inst)$3, (Inst)$5)); }	
 	;
 cond:	   expr 	{ code(STOP); }
 	;
@@ -90,6 +91,7 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	| stmtlist stmt
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
+	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
 	| VAR	 { $$ = code2(valpush, (Inst)$1); }
 	| asgn
 	| VAR begin '(' arglist ')'
@@ -114,6 +116,9 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| expr OR expr	{ code(or); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
+valuelist:	/* nothing */	{ $$ = 0; }	
+	| NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
+	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; }
 prlist:	  expr			{ code(prexpr); }
 	| STRING		{ $$ = code2(prstr, (Inst)$1); }
 	| prlist ',' expr	{ code(prexpr); }
@@ -235,19 +240,19 @@ int yylex(void)		/* hoc6 */
 		return STRING;
 	}
 	switch (c) {
-	case '+':	return follow('=', ADDEQ, '+');
-	case '-':	return follow('=', SUBEQ, '-');
-	case '*':	return follow('=', MULEQ, '*');
-	case '/':	return follow('=', DIVEQ, '/');
-	case '%':	return follow('=', MODEQ, '%');
-	case '>':	return follow('=', GE, GT);
-	case '<':	return follow('=', LE, LT);
-	case '=':	return follow('=', EQ, '=');
-	case '!':	return follow('=', NE, NOT);
-	case '|':	return follow('|', OR, '|');
-	case '&':	return follow('&', AND, '&');
-	case '\n':	lineno++; return '\n';
-	default:	return c;
+		case '+':	return follow('=', ADDEQ, '+');
+		case '-':	return follow('=', SUBEQ, '-');
+		case '*':	return follow('=', MULEQ, '*');
+		case '/':	return follow('=', DIVEQ, '/');
+		case '%':	return follow('=', MODEQ, '%');
+		case '>':	return follow('=', GE, GT);
+		case '<':	return follow('=', LE, LT);
+		case '=':	return follow('=', EQ, '=');
+		case '!':	return follow('=', NE, NOT);
+		case '|':	return follow('|', OR, '|');
+		case '&':	return follow('&', AND, '&');
+		case '\n':	lineno++; return '\n';
+		default:	return c;
 	}
 }
 
@@ -369,7 +374,7 @@ void printProg(Inst *start) {
 				Symbol *sp = lookupThoughAddress(globalSymbolList, (Symbol *)(*cur));
 				if (sp) {
 					if (strcmp(sp->name, "") == 0) {
-						printf("%lf", *(sp->u.objPtr->u.numberVal));
+						printf("%lf", *(sp->u.objPtr->u.valuelist));
 					} else {
 						printf("%s", sp->name);
 					}

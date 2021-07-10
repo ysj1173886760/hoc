@@ -32,27 +32,34 @@ typedef struct Frame
 Frame frame[NFRAME];
 Frame *fp; /* frame pointer */
 
+void test(void)
+{
+	printf("test\n");
+}
+
 Datum double2Datum(double val)
 {
 	Datum d;
 	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = NUMBER;
-	d.u.obj->u.numberVal = (double *)emalloc(sizeof(double));
-	*(d.u.obj->u.numberVal) = val;
+	d.u.obj->size = 1;
+	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
+	*(d.u.obj->u.valuelist) = val;
 	return d;
 }
 
-double valpop(void)
+// problem : double->double *
+double *valpop(void)
 {
 	Datum d;
 	d = pop();
 	if (d.setflag == 0)
-		return *d.u.obj->u.numberVal;
+		return d.u.obj->u.valuelist;
 	// d contains sym
 	Symbol *sp = parseVar(d.u.sym);
 	verify(sp);
-	return *sp->u.objPtr->u.numberVal;
+	return sp->u.objPtr->u.valuelist;
 }
 
 void debugC(int flag, int level, const char *format, ...)
@@ -138,8 +145,28 @@ void constpush(void)
 {
 	Datum d;
 	double tmp;
-	tmp = *(((Symbol *)*pc++)->u.objPtr->u.numberVal);
+	tmp = *(((Symbol *)*pc++)->u.objPtr->u.valuelist);
 	d = double2Datum(tmp);
+	push(d);
+}
+
+void listpush(void)
+{
+	Datum d;
+	long size = (long)*pc++;
+	printf("size: %ld\n", size);
+	double *valuelist = (double *)emalloc(size * sizeof(double));
+	for (int i = size - 1; i >= 0; --i)
+	{
+		// have some problem : can't support a = [[1,2,3],4,5] case
+		double val = *valpop();
+		valuelist[i] = val;
+	}
+	d.setflag = 0;
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = (long)LIST;
+	d.u.obj->size = size;
+	d.u.obj->u.valuelist = valuelist;
 	push(d);
 }
 
@@ -158,9 +185,14 @@ void valpush(void)
 	Datum d;
 	Symbol *sp = (Symbol *)(*pc++);
 	Symbol *var = parseVar(sp);
-	double val = *var->u.objPtr->u.numberVal;
-	d = double2Datum(val);
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = var->u.objPtr->type;
+	d.u.obj->size = var->u.objPtr->size;
+	d.u.obj->u.valuelist = (double *)emalloc(d.u.obj->size * sizeof(double));
+	for (int i = 0; i < d.u.obj->size; ++i)
+		d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
 	d.setflag = 0;
+
 	push(d);
 }
 
@@ -169,14 +201,14 @@ void whilecode(void)
 	Inst *savepc = pc;
 
 	execute(savepc + 2); /* condition */
-	double cond = valpop();
+	double cond = *valpop();
 	while (cond)
 	{
 		execute(*((Inst **)(savepc))); /* body */
 		if (returning)
 			break;
 		execute(savepc + 2); /* condition */
-		cond = valpop();
+		cond = *valpop();
 	}
 	if (!returning)
 		pc = *((Inst **)(savepc + 1)); /* next stmt */
@@ -189,7 +221,7 @@ void forcode(void)
 	execute(savepc + 4); /* precharge */
 	pop();
 	execute(*((Inst **)(savepc))); /* condition */
-	double cond = valpop();
+	double cond = *valpop();
 	while (cond)
 	{
 		execute(*((Inst **)(savepc + 2))); /* body */
@@ -198,7 +230,7 @@ void forcode(void)
 		execute(*((Inst **)(savepc + 1))); /* post loop */
 		pop();
 		execute(*((Inst **)(savepc))); /* condition */
-		cond = valpop();
+		cond = *valpop();
 	}
 	if (!returning)
 		pc = *((Inst **)(savepc + 3)); /* next stmt */
@@ -210,7 +242,7 @@ void ifcode(void)
 	Inst *savepc = pc; /* then part */
 
 	execute(savepc + 3); /* condition */
-	double cond = valpop();
+	double cond = *valpop();
 	if (cond)
 		execute(*((Inst **)(savepc)));
 	else if (*((Inst **)(savepc + 1))) /* else part? */
@@ -289,14 +321,14 @@ void call(void) /* call a function */
 	// bind the args, currently, we can only bind the numbers, this should be amend to bind the object directly
 	for (Symbol *cur = funcInfo->argBegin; cur != 0; cur = cur->next)
 	{
-		double d = valpop();
+		double d = *valpop();
 		if (strcmp(cur->name, "") != 0)
 		{
 			fp->varList = install(fp->varList, cur->name, VAR, 0.0);
 			Object *newObj = (Object *)emalloc(sizeof(Object));
 			newObj->type = NUMBER;
-			newObj->u.numberVal = (double *)emalloc(sizeof(double));
-			*(newObj->u.numberVal) = d;
+			newObj->u.valuelist = (double *)emalloc(sizeof(double));
+			*(newObj->u.valuelist) = d;
 			fp->varList->u.objPtr = newObj;
 		}
 	}
@@ -315,7 +347,7 @@ void ret(void) /* common return from func or proc */
 
 void bltin(void)
 {
-	double val = valpop();
+	double val = *valpop();
 	val = (*(double (*)(double)) * pc++)(val);
 	Datum d = double2Datum(val);
 	push(d);
@@ -330,8 +362,8 @@ void add(void)
 	// push(d1);
 
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 + d2);
 	push(d);
 }
@@ -339,8 +371,8 @@ void add(void)
 void sub(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 - d2);
 	push(d);
 }
@@ -348,51 +380,31 @@ void sub(void)
 void mul(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 * d2);
 	push(d);
 }
 
 void divop(void)
 {
-	// Datum d1, d2;
-	// d2 = pop();
-	// if (d2.val == 0.0)
-	// 	execerror("division by zero", (char *)0);
-	// d1 = pop();
-	// d1.val /= d2.val;
-	// push(d1);
-
 	double d1, d2;
-	d2 = valpop();
+	d2 = *valpop();
 	if (d2 == 0.0)
 		execerror("division by zero", (char *)0);
-	d1 = valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 / d2);
 	push(d);
 }
 
 void mod(void)
 {
-	// Datum d1, d2;
-	// long x;
-	// d2 = pop();
-	// if (d2.val == 0.0)
-	// 	execerror("division by zero", (char *)0);
-	// d1 = pop();
-	// /* d1.val %= d2.val; */
-	// x = d1.val;
-	// x %= (long)d2.val;
-	// d1.val = d2.val = x;
-	// push(d1);
-
 	double d1, d2;
 	long x;
-	d2 = valpop();
+	d2 = *valpop();
 	if (d2 == 0.0)
 		execerror("division by zero", (char *)0);
-	d1 = valpop();
+	d1 = *valpop();
 	x = d1;
 	x %= (long)d2;
 	Datum d = double2Datum(x);
@@ -415,27 +427,11 @@ void verify(Symbol *s)
 		execerror("undefined variable", s->name);
 }
 
-// void eval(void) /* evaluate variable on stack */
-// {
-// 	Datum d;
-// 	d = pop();
-// 	Symbol *sp = parseVar(d.sym);
-// 	verify(sp);
-// 	d.val = *(sp->u.objPtr->u.numberVal);
-// 	push(d);
-// }
-
 void gt(void)
 {
-	// Datum d1, d2;
-	// d2 = pop();
-	// d1 = pop();
-	// d1.val = (double)(d1.val > d2.val);
-	// push(d1);
-
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 > d2);
 	push(d);
 }
@@ -443,8 +439,8 @@ void gt(void)
 void lt(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 < d2);
 	push(d);
 }
@@ -452,8 +448,8 @@ void lt(void)
 void ge(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 >= d2);
 	push(d);
 }
@@ -461,8 +457,8 @@ void ge(void)
 void le(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 <= d2);
 	push(d);
 }
@@ -470,8 +466,8 @@ void le(void)
 void eq(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 == d2);
 	push(d);
 }
@@ -479,8 +475,8 @@ void eq(void)
 void ne(void)
 {
 	double d1, d2;
-	d2 = valpop();
-	d1 = valpop();
+	d2 = *valpop();
+	d1 = *valpop();
 	Datum d = double2Datum(d1 != d2);
 	push(d);
 }
@@ -530,25 +526,42 @@ void assign(void)
 	if (d1.u.sym->u.objPtr)
 	{
 		if (d1.u.sym->u.objPtr->type == NUMBER)
-			free(d1.u.sym->u.objPtr->u.numberVal);
+			free(d1.u.sym->u.objPtr->u.valuelist);
 		free(d1.u.sym->u.objPtr);
 	}
 	// case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
 	if (d2.u.obj || d2.u.sym->u.objPtr->type == NUMBER)
 	{
 		Object *newObj = (Object *)emalloc(sizeof(Object));
-		newObj->type = NUMBER;
-		newObj->u.numberVal = (double *)emalloc(sizeof(Object));
-		d1.u.sym->u.objPtr = newObj;
-		double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.numberVal : *d2.u.obj->u.numberVal;
-		*(d1.u.sym->u.objPtr->u.numberVal) = val;
+		newObj->type = d2.u.obj->type;
+		if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
+		{
+			newObj->u.valuelist = (double *)emalloc(sizeof(double));
+			d1.u.sym->u.objPtr = newObj;
+			double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
+			*(d1.u.sym->u.objPtr->u.valuelist) = val;
+		}
+		else if (d2.u.obj->type == LIST)
+		{
+			int size = d2.u.obj->size;
+			newObj->size = size;
+			newObj->type = LIST;
+			newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
+			for (int i = 0; i < size; ++i)
+				newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
+			d1.u.sym->u.objPtr = newObj;
+		}
 		d1.u.sym->type = VAR;
 	}
 	// case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
 	// in current stage, this part is a toy, future update...
-	// else if ()
-	// {
-	// }
+	// this part doesn't work because a = (list)b is explained as VAR '=' expr => VAR '=' VAR, here we use action valpush, not varpush
+	// so, d2 is always obj
+	else if (d2.u.sym->u.objPtr->type == LIST)
+	{
+		printf("not work\n");
+		d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
+	}
 	push(d2);
 }
 
@@ -622,22 +635,41 @@ void modeq(void)
 
 void printtop(void) /* pop top value from stack, print it */
 {
-	// Datum d;
-	static Symbol *s; /* last value computed */
-	if (s == 0)
-		s = install(globalSymbolList, "_", VAR, 0.0);
-	// d = pop();
-	double d = valpop();
-	printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal), d);
-	// s->u.objPtrj= d.val;
+	// static Symbol *s; /* last value computed */
+	// if (s == 0)
+	// 	s = install(globalSymbolList, "_", VAR, 0.0);
+	// double d = *valpop();
+	// printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist), d);
+
+	// what's the diff between prittop and prexpr
+	Datum d;
+	d = pop();
+	if (d.u.obj->type == NUMBER)
+		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+	// here may have some problems
+	if (d.u.obj->type == LIST)
+	{
+		int size = d.u.obj->size;
+		printf("list member : ");
+		for (int i = 0; i < size; ++i)
+			printf("%lf ", d.u.obj->u.valuelist[i]);
+	}
 }
 
 void prexpr(void) /* print numeric value */
 {
-	// Datum d;
-	// d = pop();
-	double d = valpop();
-	printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal)), d);
+	Datum d;
+	d = pop();
+	if (d.u.obj->type == NUMBER)
+		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+	// here may have some problems
+	if (d.u.obj->type == LIST)
+	{
+		int size = d.u.obj->size;
+		printf("list member : ");
+		for (int i = 0; i < size; ++i)
+			printf("%lf ", d.u.obj->u.valuelist[i]);
+	}
 }
 
 void prstr(void) /* print string value */
@@ -651,7 +683,7 @@ void varread(void) /* read into variable */
 	// 	extern FILE *fin;
 	// 	Symbol *var = (Symbol *)*pc++;
 	// Again:
-	// 	switch (fscanf(fin, "%lf", (var->u.objPtr->u.numberVal)))
+	// 	switch (fscanf(fin, "%lf", (var->u.objPtr->u.valuelist)))
 	// 	{
 	// 	case EOF:
 	// 		if (moreinput())
@@ -663,7 +695,7 @@ void varread(void) /* read into variable */
 	// 		execerror("non-number read into", var->name);
 	// 		break;
 	// 	default:
-	// 		d.val = *(var->u.objPtr->u.numberVal);
+	// 		d.val = *(var->u.objPtr->u.valuelist);
 	// 		break;
 	// 	}
 	// 	var->type = VAR;
