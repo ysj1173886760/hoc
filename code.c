@@ -106,8 +106,6 @@ Symbol *parseVar(Symbol *name_sp)
 	else
 	{
 		sp = lookup(fp->varList, name_sp->name);
-		// for (Symbol *s = fp->varList; s; s = s->next)
-		// 	printf("%s\n", s->name);
 	}
 	return sp;
 }
@@ -185,13 +183,15 @@ void valpush(void)
 	Datum d;
 	Symbol *sp = (Symbol *)(*pc++);
 	Symbol *var = parseVar(sp);
+
+	double val = *var->u.objPtr->u.valuelist;
+	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = var->u.objPtr->type;
 	d.u.obj->size = var->u.objPtr->size;
 	d.u.obj->u.valuelist = (double *)emalloc(d.u.obj->size * sizeof(double));
 	for (int i = 0; i < d.u.obj->size; ++i)
 		d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
-	d.setflag = 0;
 
 	push(d);
 }
@@ -327,6 +327,7 @@ void call(void) /* call a function */
 			fp->varList = install(fp->varList, cur->name, VAR, 0.0);
 			Object *newObj = (Object *)emalloc(sizeof(Object));
 			newObj->type = NUMBER;
+			newObj->size = 1;
 			newObj->u.valuelist = (double *)emalloc(sizeof(double));
 			*(newObj->u.valuelist) = d;
 			fp->varList->u.objPtr = newObj;
@@ -533,9 +534,12 @@ void assign(void)
 	if (d2.u.obj || d2.u.sym->u.objPtr->type == NUMBER)
 	{
 		Object *newObj = (Object *)emalloc(sizeof(Object));
-		newObj->type = d2.u.obj->type;
+		// newObj->type = d2.u.obj->type;
+		// newObj->size = d2.u.obj->size;
 		if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
 		{
+			newObj->type = NUMBER;
+			newObj->size = 1;
 			newObj->u.valuelist = (double *)emalloc(sizeof(double));
 			d1.u.sym->u.objPtr = newObj;
 			double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
@@ -544,8 +548,8 @@ void assign(void)
 		else if (d2.u.obj->type == LIST)
 		{
 			int size = d2.u.obj->size;
-			newObj->size = size;
 			newObj->type = LIST;
+			newObj->size = size;
 			newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
 			for (int i = 0; i < size; ++i)
 				newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];

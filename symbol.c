@@ -27,6 +27,7 @@ Symbol *install(Symbol *symList, char *s, int t, double d) /* install s in symbo
 	{
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = NUMBER;
+		newObj->size = 1;
 		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
 		*(newObj->u.valuelist) = d;
 		sp->u.objPtr = newObj;
