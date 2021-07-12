@@ -11,7 +11,7 @@ Symbol *keywordList = 0;
 Info *curDefiningFunction = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 0;
+int debugLevel = 1;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -115,7 +115,7 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
 prlist:	  expr			{ code(prexpr); }
-	| STRING		{ $$ = code2(prstr, (Inst)$1); }
+	| STRING		{ $$ = code3(strpush, prstr, (Inst)$1); }
 	| prlist ',' expr	{ code(prexpr); }
 	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
 	;
@@ -230,8 +230,20 @@ int yylex(void)		/* hoc6 */
 			*p = backslash(c);
 		}
 		*p = 0;
-		yylval.sym = (Symbol *)emalloc(strlen(sbuf)+1);
-		strcpy((char*)yylval.sym, sbuf);
+		/* yylval.sym = (Symbol *)emalloc(strlen(sbuf)+1);
+		strcpy((char*)yylval.sym, sbuf); */
+		Symbol *s = install(globalSymbolList, "", STRING, 0.0);
+
+		Object *newObj = (Object *)emalloc(sizeof(Object));
+		newObj->type = STRING;
+		newObj->u.str = (char *)emalloc(sizeof(strlen(sbuf)+1));
+		newObj->u.str = sbuf;
+		s->u.objPtr = newObj;
+		yylval.sym = s;
+
+		/* printf("newObj->u.str: %s\n", newObj->u.str);
+		printf("s->u.objPtr->u.str: %s\n", s->u.objPtr->u.str); */
+		printf("yylval.sym->u.objPtr->u.str: %s\n", yylval.sym->u.objPtr->u.str);
 		return STRING;
 	}
 	switch (c) {

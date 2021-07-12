@@ -108,6 +108,19 @@ void constpush(void)
 	push(d);
 }
 
+void strpush(void)
+{
+	// Datum d;
+	// d.sym = ((Symbol *)*pc++);
+	// if (d.sym != NULL) {
+	// 	printf("d.sym != nullptr\n");
+	// 	printf("%s", d.sym->u.str);
+	// 	push(d);
+	// 	printf("push done\n");
+	// }
+	
+}
+
 void varpush(void)
 {
 	Datum d;
@@ -613,7 +626,9 @@ void prexpr(void) /* print numeric value */
 
 void prstr(void) /* print string value */
 {
+	printf("prstr begin\n");
 	printf("%s", (char *)*pc++);
+	printf("prstr end\n");
 }
 
 void varread(void) /* read into variable */
