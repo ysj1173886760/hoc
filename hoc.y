@@ -72,7 +72,7 @@ stmt:	  expr	{ code(xpop); }
 		($1)[3] = (Inst)$9; }	/* end, if cond fails */
 	| '{' stmtlist '}'	{ $$ = $2; }
 	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }
-	// | VAR '.' VAR '(' valuelist ')' { code2(oprcheck, (Inst)$1); code2((Inst)$3, (Inst)$5)); }	
+	| VAR '.' VAR '(' valuelist ')' { code3(oprcall, (Inst)$1, (Inst)$3); code((Inst)$5); }	
 	;
 cond:	   expr 	{ code(STOP); }
 	;
@@ -179,7 +179,8 @@ int yylex(void)		/* hoc6 */
 			lineno++;
 		return c;
 	}
-	if (c == '.' || isdigit(c)) {	/* number */
+	// here have complex with A.opr, so I delete c == '.'
+	if (isdigit(c)) {	/* number */
 		double d;
 		ungetc(c, fin);
 		fscanf(fin, "%lf", &d);
@@ -405,6 +406,7 @@ int main(int argc, char* argv[])	/* hoc6 */
 
 	progname = argv[0];
 	init();
+	init_LIST_opr();
 
 	// normal argument list, argc - 1 means we don't count the proc name, argv + 1 means we are starting from the first argument
 	gargv = argv+1;

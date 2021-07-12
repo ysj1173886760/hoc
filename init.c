@@ -1,6 +1,7 @@
 #include "hoc.h"
 #include "y.tab.h"
 #include <math.h>
+#include <stdio.h>
 
 static struct
 { /* Keywords */

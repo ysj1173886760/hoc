@@ -83,7 +83,7 @@ extern void prexpr(void), prstr(void);
 extern void gt(void), lt(void), eq(void), ge(void), le(void), ne(void);
 extern void and (void), or (void), not(void);
 extern void ifcode(void), whilecode(void), forcode(void);
-extern void call(void);
+extern void call(void), oprcall(void);
 // extern void funcret(void), procret(void);
 // extern void preinc(void), predec(void), postinc(void), postdec(void);
 extern void execute(Inst *);

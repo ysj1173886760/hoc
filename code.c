@@ -33,9 +33,62 @@ typedef struct Frame
 Frame frame[NFRAME];
 Frame *fp; /* frame pointer */
 
+typedef struct Opr
+{
+	char *name; //操作的名称 例:append
+	int nargs;	//传入的参数数目 例:1
+	// problem : 不定参数有没有参数个数为0的写法？cur stage : one arg
+	void (*func)(double n);
+} Opr;
+
+#define NOPR 10
+int list_noprs = 0;
+Opr ListOpr[NOPR];
+
+Symbol *cur_opr_sym; //当前操作(A.opr)的对象(A)
+typedef void (*FunType)(double);
+
+int lookup_oprId(Symbol *s)
+{
+	char *name = s->name;
+	for (int i = 0; i < list_noprs; ++i)
+	{
+		if (strcmp(name, ListOpr[i].name) == 0)
+			return i;
+	}
+	return -1;
+}
+
+void append(double x)
+{
+	int i;
+	int size = cur_opr_sym->u.objPtr->size + 1;
+	double *tmp = (double *)emalloc(size * sizeof(double));
+	for (i = 0; i < size - 1; ++i)
+		tmp[i] = cur_opr_sym->u.objPtr->u.valuelist[i];
+	tmp[i] = x;
+	free(cur_opr_sym->u.objPtr->u.valuelist);
+	cur_opr_sym->u.objPtr->u.valuelist = tmp;
+	cur_opr_sym->u.objPtr->size = size;
+}
+
+void insertList_opr(const char *opr_name, int nargs, FunType fp)
+{
+	ListOpr[list_noprs].name = (char *)emalloc(10 * sizeof(char));
+	strcpy(ListOpr[list_noprs].name, opr_name);
+	ListOpr[list_noprs].nargs = nargs;
+	ListOpr[list_noprs].func = fp;
+	++list_noprs;
+}
+
+void init_LIST_opr(void)
+{
+	insertList_opr("append", 1, append);
+}
+
 void test(void)
 {
-	printf("%d : test\n", flag);
+	printf("test\n");
 }
 
 Datum double2Datum(double val)
@@ -176,6 +229,7 @@ void varpush(void)
 	Symbol *var = parseVar(sp);
 	d.u.sym = var;
 	d.setflag = 1;
+	// printf("varpush : %s\n", d.u.sym->name);
 	push(d);
 }
 
@@ -345,6 +399,30 @@ void call(void) /* call a function */
 
 	execute(funcInfo->defn);
 	returning = 0;
+}
+
+// maybe you can combine call and oprcall into a general_call, update in future
+void oprcall(void)
+{
+	printf("a\n");
+	Symbol *name_sp = (Symbol *)pc[0];
+	Symbol *sp = parseVar(name_sp);
+	cur_opr_sym = sp;
+	// cur stage only support LIST type and append opr
+	if (cur_opr_sym->u.objPtr->type != LIST)
+		execerror(cur_opr_sym->name, " type is not LIST");
+	Symbol *s_opr = (Symbol *)pc[1];
+	int opr_id = lookup_oprId(s_opr);
+	if (opr_id == -1)
+		execerror(s_opr->name, " not correct opr");
+	int nargs = (int)pc[2];
+	if (nargs != ListOpr[opr_id].nargs)
+		execerror(s_opr->name, "nargs match error");
+	Inst *retpc = pc + 3;
+	// cur stage, we only have one opr, so ListOpr[0], in future add map<string, int>
+	double x = *valpop();
+	(*ListOpr[opr_id].func)(x);
+	pc = (Inst *)retpc;
 }
 
 void ret(void) /* common return from func or proc */
@@ -567,9 +645,6 @@ void assign(void)
 		d1.u.sym->type = VAR;
 	}
 	// case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
-	// in current stage, this part is a toy, future update...
-	// this part doesn't work because a = (list)b is explained as VAR '=' expr => VAR '=' VAR, here we use action valpush, not varpush
-	// so, d2 is always obj
 	else if (d2.u.sym->u.objPtr->type == LIST)
 		d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
 	push(d2);
