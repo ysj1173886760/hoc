@@ -69,6 +69,7 @@ extern void defineBegin(Symbol *), verify(Symbol *);
 extern void defineEnd(Symbol *);
 extern Datum pop(void);
 extern void initcode(void), push(Datum), xpop(void), constpush(void), listpush(void);
+
 extern void varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
 extern void negate(void), power(void);
@@ -106,5 +107,7 @@ extern double *valpop(void);
 extern Symbol *parseVar(Symbol *);
 extern void ret(void);
 extern void valpush(void);
+extern void exprpush(void);
 
 extern void test(void);
+extern void setFlag(void);

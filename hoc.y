@@ -43,7 +43,7 @@ list:	  /* nothing */
 	| list expr '\n'  { code2(printtop, STOP); return 1; }
 	| list error '\n' { yyerrok; }
 	;
-asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
+asgn:	  VAR '=' { code(setFlag); /*var*/ } expr { code(setFlag); /*val*/ code3(varpush,(Inst)$1,assign); $$=$4; }
 	| VAR ADDEQ expr	{ code3(varpush,(Inst)$1,addeq); $$=$3; }
 	| VAR SUBEQ expr	{ code3(varpush,(Inst)$1,subeq); $$=$3; }
 	| VAR MULEQ expr	{ code3(varpush,(Inst)$1,muleq); $$=$3; }
@@ -92,10 +92,10 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
-	| VAR	 { $$ = code2(valpush, (Inst)$1); }
+	| VAR	 { $$ = code2(exprpush, (Inst)$1); }
 	| asgn
-	| VAR begin '(' arglist ')'
-		{ $$ = $2; code3(call,(Inst)$1,(Inst)$4); }
+	| VAR begin '(' { code(setFlag); /*val*/ } arglist { code(setFlag); /*var*/ } ')'
+		{ $$ = $2; code3(call,(Inst)$1,(Inst)$5); }
 	| READ '(' VAR ')' { $$ = code2(varread, (Inst)$3); }
 	| BLTIN '(' expr ')' { $$=$3; code2(bltin, (Inst)$1->u.ptr); }
 	| '(' expr ')'	{ $$ = $2; }

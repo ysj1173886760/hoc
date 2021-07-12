@@ -18,6 +18,7 @@ Inst *progbase = prog; /* start of current subprogram */
 int returning;		   /* 1 if return stmt seen */
 
 int execDepth;
+int flag = 1; // flag = 0 : varpush	flag = 1 : valpush
 
 extern int debugLevel;
 extern int debugFlag;
@@ -34,7 +35,7 @@ Frame *fp; /* frame pointer */
 
 void test(void)
 {
-	printf("test\n");
+	printf("%d : test\n", flag);
 }
 
 Datum double2Datum(double val)
@@ -194,6 +195,14 @@ void valpush(void)
 		d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
 
 	push(d);
+}
+
+void exprpush(void)
+{
+	if (flag)
+		valpush();
+	else
+		varpush();
 }
 
 void whilecode(void)
@@ -531,7 +540,7 @@ void assign(void)
 		free(d1.u.sym->u.objPtr);
 	}
 	// case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
-	if (d2.u.obj || d2.u.sym->u.objPtr->type == NUMBER)
+	if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
 	{
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		// newObj->type = d2.u.obj->type;
@@ -562,10 +571,7 @@ void assign(void)
 	// this part doesn't work because a = (list)b is explained as VAR '=' expr => VAR '=' VAR, here we use action valpush, not varpush
 	// so, d2 is always obj
 	else if (d2.u.sym->u.objPtr->type == LIST)
-	{
-		printf("not work\n");
 		d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
-	}
 	push(d2);
 }
 
@@ -725,4 +731,9 @@ void execute(Inst *p)
 	execDepth--;
 
 	debugC(hocExec, 4, "Executing ended at %ld, starting from %ld\n", pc - progbase, p - progbase);
+}
+
+void setFlag()
+{
+	flag = (flag == 0) ? 1 : 0;
 }
