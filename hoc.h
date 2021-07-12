@@ -27,7 +27,7 @@ typedef struct Symbol
 	{
 		Object *objPtr;			   /* VAR */
 		double (*ptr)(double); /* BLTIN */
-		char *str;			   /* STRING */
+		// char *str;			   /* STRING */
 	} u;
 	struct Symbol *next; /* to link to another */
 } Symbol;

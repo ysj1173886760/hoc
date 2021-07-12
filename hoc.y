@@ -230,8 +230,6 @@ int yylex(void)		/* hoc6 */
 			*p = backslash(c);
 		}
 		*p = 0;
-		/* yylval.sym = (Symbol *)emalloc(strlen(sbuf)+1);
-		strcpy((char*)yylval.sym, sbuf); */
 		Symbol *s = install(globalSymbolList, "", STRING, 0.0);
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
@@ -241,9 +239,6 @@ int yylex(void)		/* hoc6 */
 		s->u.objPtr = newObj;
 		yylval.sym = s;
 
-		/* printf("newObj->u.str: %s\n", newObj->u.str);
-		printf("s->u.objPtr->u.str: %s\n", s->u.objPtr->u.str); */
-		printf("yylval.sym->u.objPtr->u.str: %s\n", yylval.sym->u.objPtr->u.str);
 		return STRING;
 	}
 	switch (c) {

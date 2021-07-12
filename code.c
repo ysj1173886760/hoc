@@ -110,15 +110,10 @@ void constpush(void)
 
 void strpush(void)
 {
-	// Datum d;
-	// d.sym = ((Symbol *)*pc++);
-	// if (d.sym != NULL) {
-	// 	printf("d.sym != nullptr\n");
-	// 	printf("%s", d.sym->u.str);
-	// 	push(d);
-	// 	printf("push done\n");
-	// }
-	
+	// ?
+	Datum d;
+	d.sym = (Symbol *)(*pc++);
+	push(d);
 }
 
 void varpush(void)
@@ -626,9 +621,14 @@ void prexpr(void) /* print numeric value */
 
 void prstr(void) /* print string value */
 {
-	printf("prstr begin\n");
-	printf("%s", (char *)*pc++);
-	printf("prstr end\n");
+	/* 为什么能用？ */
+	Symbol *s = (Symbol *)*pc++;
+	printf("%s\n", s->u.objPtr->u.str);
+
+	// Datum d;
+	// d = pop();
+	// printf("%s\n", d.sym->u.objPtr->u.str);
+	// printf("str'size: %d\n", (int)strlen(d.sym->u.objPtr->u.str));
 }
 
 void varread(void) /* read into variable */
