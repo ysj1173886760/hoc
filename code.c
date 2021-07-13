@@ -638,51 +638,109 @@ void assign(void)
 	{
 		if (d1.u.sym->u.objPtr->type == NUMBER)
 			free(d1.u.sym->u.objPtr->u.valuelist);
+		else if (d1.u.sym->u.objPtr->type == STRING)
+			free(d1.u.sym->u.objPtr->u.str);
 		free(d1.u.sym->u.objPtr);
 	}
-	// case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
-	if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
+
+	// d2 is obj
+	if (d2.setflag == 0)
 	{
 		Object *newObj = (Object *)emalloc(sizeof(Object));
-		// newObj->type = d2.u.obj->type;
-		// newObj->size = d2.u.obj->size;
-		if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
+		newObj->type = d2.u.obj->type;
+		newObj->size = d2.u.obj->size;
+
+		if (d2.u.obj->type == NUMBER) 
 		{
-			newObj->type = NUMBER;
-			newObj->size = 1;
+			// printf("NUMBER\n");
 			newObj->u.valuelist = (double *)emalloc(sizeof(double));
+			newObj->u.valuelist = d2.u.obj->u.valuelist;
 			d1.u.sym->u.objPtr = newObj;
-			double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
-			*(d1.u.sym->u.objPtr->u.valuelist) = val;
-		}
-		else if (d2.u.obj->type == LIST)
+		} else if (d2.u.obj->type == LIST)
 		{
-			int size = d2.u.obj->size;
-			newObj->type = LIST;
-			newObj->size = size;
-			newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
-			for (int i = 0; i < size; ++i)
-				newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
+			newObj->u.valuelist = (double *)emalloc(newObj->size * sizeof(double));
+			newObj->u.valuelist = d2.u.obj->u.valuelist;
+			// for (int i = 0; i < newObj->size; i++) {
+			// 	newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
+			// }
 			d1.u.sym->u.objPtr = newObj;
-		}
-		else if (d2.u.obj->type == STRING)
+		} else if (d2.u.obj->type == STRING)
 		{
-			int size = d2.u.obj->size;
-			newObj->type = STRING;
-			newObj->size = size;
-			// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
-			newObj->u.str = (char *)emalloc(size * sizeof(char));
-			// newObj->u.str = d2.u.obj->u.str;
+			newObj->u.str = (char *)emalloc(newObj->size * sizeof(char));
 			strcpy(newObj->u.str, d2.u.obj->u.str);
 			d1.u.sym->u.objPtr = newObj;
-			
-			// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
 		}
-		d1.u.sym->type = VAR;
+	} 
+	// d2 is sym
+	else 
+	{
+		Object *newObj = (Object *)emalloc(sizeof(Object));
+		newObj->type = d2.u.sym->u.objPtr->type;
+		newObj->size = d2.u.sym->u.objPtr->size;
+
+		// TODO: bug when NUMBER
+		if (d2.u.sym->u.objPtr->type == NUMBER)
+		{
+			newObj->u.valuelist = (double *)emalloc(sizeof(double));
+			newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
+			d1.u.sym->u.objPtr = newObj;
+		} else if (d2.u.sym->u.objPtr->type == LIST) 
+		{
+			newObj->u.valuelist = (double *)emalloc(newObj->size * sizeof(double));
+			newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
+			d1.u.sym->u.objPtr = newObj;
+		} else if (d2.u.sym->u.objPtr->type == STRING)
+		{
+			newObj->u.str = (char *)emalloc(newObj->size * sizeof(char));
+			strcpy(newObj->u.str, d2.u.sym->u.objPtr->u.str);
+			d1.u.sym->u.objPtr = newObj;
+		}
 	}
-	// case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
-	else if (d2.u.sym->u.objPtr->type == LIST)
-		d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
+	// // case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
+	// if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
+	// {
+	// 	Object *newObj = (Object *)emalloc(sizeof(Object));
+	// 	// newObj->type = d2.u.obj->type;
+	// 	// newObj->size = d2.u.obj->size;
+	// 	if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
+	// 	{
+	// 		newObj->type = NUMBER;
+	// 		newObj->size = 1;
+	// 		newObj->u.valuelist = (double *)emalloc(sizeof(double));
+	// 		d1.u.sym->u.objPtr = newObj;
+	// 		double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
+	// 		*(d1.u.sym->u.objPtr->u.valuelist) = val;
+	// 	}
+	// 	else if (d2.u.obj->type == LIST)
+	// 	{
+	// 		int size = d2.u.obj->size;
+	// 		newObj->type = LIST;
+	// 		newObj->size = size;
+	// 		newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
+	// 		for (int i = 0; i < size; ++i)
+	// 			newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
+	// 		d1.u.sym->u.objPtr = newObj;
+	// 	}
+	// 	else if (d2.u.obj->type == STRING)
+	// 	{
+	// 		int size = d2.u.obj->size;
+	// 		newObj->type = STRING;
+	// 		newObj->size = size;
+	// 		// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
+	// 		newObj->u.str = (char *)emalloc(size * sizeof(char));
+	// 		// newObj->u.str = d2.u.obj->u.str;
+	// 		strcpy(newObj->u.str, d2.u.obj->u.str);
+	// 		d1.u.sym->u.objPtr = newObj;
+			
+	// 		// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
+	// 	}
+	// 	d1.u.sym->type = VAR;
+	// }
+	// // case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
+	// else if (d2.u.sym->u.objPtr->type == LIST)
+	// 	d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
+	// else if (d2.u.sym->u.objPtr->type == STRING)
+	// 	d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
 	push(d2);
 }
 
