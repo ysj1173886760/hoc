@@ -103,6 +103,20 @@ Datum double2Datum(double val)
 	return d;
 }
 
+Datum str2Datum(char *str)
+{
+	Datum d;
+	d.setflag = 0;
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = STRING;
+	d.u.obj->size = strlen(str);
+	d.u.obj->u.str = (char *)emalloc(sizeof(strlen(str)+1));
+	d.u.obj->u.str = str;
+
+	printf("str2Datum str: %s\n", d.u.obj->u.str);
+	return d;
+}
+
 // problem : double->double *
 double *valpop(void)
 {
@@ -202,6 +216,17 @@ void constpush(void)
 	push(d);
 }
 
+void strpush(void)
+{
+	Datum d;
+	Symbol *s = (Symbol *)*pc++;
+	printf("strpush s->str: %s\n", s->u.objPtr->u.str);
+	d = str2Datum(s->u.objPtr->u.str);
+	push(d);
+
+	printf("strpush str: %s\n", d.u.obj->u.str);
+}
+
 void listpush(void)
 {
 	Datum d;
@@ -229,7 +254,7 @@ void varpush(void)
 	Symbol *var = parseVar(sp);
 	d.u.sym = var;
 	d.setflag = 1;
-	// printf("varpush : %s\n", d.u.sym->name);
+	printf("varpush : %s\n", d.u.sym->name);
 	push(d);
 }
 
@@ -642,6 +667,18 @@ void assign(void)
 				newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
 			d1.u.sym->u.objPtr = newObj;
 		}
+		else if (d2.u.obj->type == STRING)
+		{
+			int size = d2.u.obj->size;
+			newObj->type = STRING;
+			newObj->size = size;
+			newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
+			newObj->u.str = d2.u.obj->u.str;
+			d1.u.sym->u.objPtr = newObj;
+			
+			printf("assign str size: %d\n", size);
+			printf("assign str: %s\n", d1.u.sym->u.objPtr->u.str);
+		}
 		d1.u.sym->type = VAR;
 	}
 	// case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
@@ -739,6 +776,9 @@ void printtop(void) /* pop top value from stack, print it */
 		for (int i = 0; i < size; ++i)
 			printf("%lf ", d.u.obj->u.valuelist[i]);
 	}
+	if (d.u.obj->type == STRING) {
+		printf("printtop str: %s\n", d.u.obj->u.str);
+	}
 }
 
 void prexpr(void) /* print numeric value */
@@ -746,7 +786,7 @@ void prexpr(void) /* print numeric value */
 	Datum d;
 	d = pop();
 	if (d.u.obj->type == NUMBER)
-		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+		printf("prexpr num: %.*g \n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
 	// here may have some problems
 	if (d.u.obj->type == LIST)
 	{
@@ -754,6 +794,12 @@ void prexpr(void) /* print numeric value */
 		printf("list member : ");
 		for (int i = 0; i < size; ++i)
 			printf("%lf ", d.u.obj->u.valuelist[i]);
+	}
+	// print "123", "321" ==> output: "321", "321"
+	// a = "123" and print a ==> output: a
+	if (d.u.obj->type == STRING)
+	{
+		printf("prexpr str: %s\n", d.u.obj->u.str);
 	}
 }
 
