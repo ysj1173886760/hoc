@@ -8,9 +8,6 @@
 
 static Datum stack[NSTACK]; /* the stack */
 static Datum *stackp;		/* next free spot on stack */
-extern Info Infostack[MAX];
-extern Info *Infostackp; // pointer to top func/proc info
-Info *cur_Infostackp;	 // pointer to current func/proc info
 
 #define NPROG 2000
 Inst prog[NPROG];	   /* the machine */
@@ -21,7 +18,7 @@ int returning;		   /* 1 if return stmt seen */
 
 int execDepth;
 
-extern int indef; /* 1 if parsing a func or proc */
+extern int indef;	   /* 1 if parsing a func or proc */
 extern int debugLevel;
 extern int debugFlag;
 
@@ -37,45 +34,12 @@ typedef struct Frame
 Frame frame[NFRAME];
 Frame *fp; /* frame pointer */
 
-void get_curInfo(Symbol *sp)
-{
-	cur_Infostackp = Infostackp - 1;
-	// printf("sp name : %s\n", sp->name);
-	// printf("info name : %s\n", cur_Infostackp->name);
-	while (strcmp(cur_Infostackp->name, sp->name))
-		--cur_Infostackp;
-}
-
-void getVF_type(Symbol *sp)
-{
-	Symbol *tmp = lookup_global(sp->name);
-	// printf("type : %ld\n", tmp->type);
-	sp->type = tmp->type;
-	// printf("indef : %d, type : %ld, name : %s\n", indef, sp->type, sp->name);
-}
-
-void Infopush(Symbol *sp)
-{
-	if (Infostackp >= &Infostack[MAX])
-		execerror("Infostack too deep", 0);
-	(*Infostackp).name = (char *)emalloc(50 * sizeof(char));
-	strcpy((*Infostackp).name, sp->name);
-}
-
-void getInfo_nargs(long nargs)
-{
-	Infostackp->nargs = nargs;
-	// printf("nargs : %d\n", Infostackp->nargs);
-}
-
-void debugC(int flag, int level, const char *format, ...)
-{
+void debugC(int flag, int level, const char *format, ...) {
 	va_list va;
 	memset(&va, 0, sizeof(va_list));
 	char buf[1024] = {0};
 
-	if (debugLevel >= level && (debugFlag & flag) != 0)
-	{
+	if (debugLevel >= level && (debugFlag & flag) != 0) {
 		if (flag == hocExec)
 			for (int i = 0; i < execDepth; i++)
 				printf("\t");
@@ -87,14 +51,12 @@ void debugC(int flag, int level, const char *format, ...)
 	printf("%s", buf);
 }
 
-void debug(int level, const char *format, ...)
-{
+void debug(int level, const char *format, ...) {
 	va_list va;
 	memset(&va, 0, sizeof(va_list));
 	char buf[1024] = {0};
 
-	if (debugLevel >= level)
-	{
+	if (debugLevel >= level) {
 		va_start(va, format);
 		vsprintf(buf, format, va);
 		va_end(va);
@@ -106,8 +68,6 @@ void initcode(void)
 {
 	progp = progbase;
 	stackp = stack;
-	Infostackp = Infostack;
-	Infostackp->paras = 0;
 	fp = frame;
 	returning = 0;
 	indef = 0;
@@ -132,7 +92,6 @@ void argpush(ArgDatum d)
 	if (fp->argstackp >= fp->argn + NSTACK)
 		execerror("argstack too deep", 0);
 	*fp->argstackp++ = d;
-	// printf("argpush : %s %lf\n", d.sym->name, d.sym->u.val);
 	// printf("size : %ld\n", fp->argstackp - fp->argn);
 }
 
@@ -154,7 +113,6 @@ void constpush(void)
 {
 	Datum d;
 	d.val = ((Symbol *)*pc++)->u.val;
-	// printf("constpush : %lf\n", d.val);
 	push(d);
 }
 
@@ -163,7 +121,6 @@ void varpush(void)
 	Datum d;
 	d.sym = (Symbol *)(*pc++);
 	push(d);
-	// printf("varpush : %lf\n", d.val);
 }
 
 void whilecode(void)
@@ -238,14 +195,8 @@ void call(void) /* call a function */
 	fp->sp = sp;
 	fp->nargs = (long)pc[1];
 	fp->retpc = pc + 2;
-
 	// TODO : 1 2 4 8 动态增加内存
-	get_curInfo(sp);
-	if (cur_Infostackp->defn == NULL)
-		cur_Infostackp->defn = sp->u.defn;
-
-	// printf("nparas : %d\n", cur_Infostackp->nparas);
-	fp->argn = (ArgDatum *)emalloc(sizeof(ArgDatum) * cur_Infostackp->nparas);
+	fp->argn = (ArgDatum *)emalloc(sizeof(ArgDatum) * NSTACK);
 	fp->argstackp = fp->argn;
 
 	debugC(hocExec, 1, "calling %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
@@ -256,23 +207,11 @@ void call(void) /* call a function */
 	{
 		Datum tmp_d = pop();
 		ArgDatum tmp_arg;
-		tmp_arg.sym = cur_Infostackp->paras;
-
-		// 注意：之后如果要改nparas的含义的话 此处会出问题！！！
-		int tmp = cur_Infostackp->nparas - tmp_nargs - 1;
-		while (tmp--)
-			tmp_arg.sym = tmp_arg.sym->next;
-		tmp_arg.sym->u.val = tmp_d.val;
-		// printf("arg : %s %lf\n", tmp_arg.sym->name, tmp_arg.sym->u.val);
+		tmp_arg.val = tmp_d.val;
 		argpush(tmp_arg);
-		// printf("argn : %s %lf\n", fp->argn->sym->name, fp->argn->sym->u.val);
 	}
-	if (fp->nargs != cur_Infostackp->nargs)
-		execerror(sp->name, " paras match error");
 
-	// printf("exec : %p\n", sp->u.defn);
-	// execute(sp->u.defn);
-	execute(cur_Infostackp->defn);
+	execute(sp->u.defn);
 	returning = 0;
 }
 
@@ -292,7 +231,6 @@ void funcret(void) /* return from a function */
 	d = pop(); /* preserve function return value */
 	ret();
 	push(d);
-	// printf("ans : %lf\n", d.val);
 }
 
 void procret(void) /* return from a procedure */
@@ -303,30 +241,12 @@ void procret(void) /* return from a procedure */
 	ret();
 }
 
-double getvf(char *name)
-{
-	ArgDatum *vf = fp->argn;
-	while (strcmp(vf->sym->name, name))
-		++vf;
-	// printf("%s : %lf\n", name, vf->sym->u.val);
-	return vf->sym->u.val;
-}
-
-void vf(void)
-{
-	Symbol *sp = (Symbol *)(*pc++);
-	char *name = sp->name;
-	Datum d;
-	d.val = getvf(name);
-	// printf("get val : %lf\n", d.val);
-	push(d);
-}
-
 double *getarg(void) /* return pointer to argument */
 {
 	int nargs = (long)*pc++;
 	if (nargs > fp->nargs)
 		execerror(fp->sp->name, "not enough arguments");
+	// printf("nargs %d : %lf\n", nargs, fp->argstackp[-nargs].val);
 	return &fp->argstackp[-nargs].val;
 }
 
@@ -695,9 +615,9 @@ void printtop(void) /* pop top value from stack, print it */
 	Datum d;
 	static Symbol *s; /* last value computed */
 	if (s == 0)
-		s = install_global("_", VAR, 0.0);
+		s = install("_", VAR, 0.0);
 	d = pop();
-	printf("%.*g\n", (int)lookup_key("PREC")->u.val, d.val);
+	printf("%.*g\n", (int)lookup("PREC")->u.val, d.val);
 	s->u.val = d.val;
 }
 
@@ -705,7 +625,7 @@ void prexpr(void) /* print numeric value */
 {
 	Datum d;
 	d = pop();
-	printf("%.*g ", (int)lookup_key("PREC")->u.val, d.val);
+	printf("%.*g ", (int)lookup("PREC")->u.val, d.val);
 }
 
 void prstr(void) /* print string value */
@@ -756,9 +676,4 @@ void execute(Inst *p)
 	execDepth--;
 
 	debugC(hocExec, 4, "Executing ended at %ld, starting from %ld\n", pc - progbase, p - progbase);
-}
-
-void testaction(void)
-{
-	printf("test action\n");
 }
