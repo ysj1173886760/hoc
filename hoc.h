@@ -68,7 +68,8 @@ extern void execerror(char *, char *);
 extern void defineBegin(Symbol *), verify(Symbol *);
 extern void defineEnd(Symbol *);
 extern Datum pop(void);
-extern void initcode(void), push(Datum), xpop(void), constpush(void), listpush(void);
+extern void initcode(void), push(Datum), xpop(void);
+extern void constpush(void), listpush(void), memberpush(void);
 
 extern void varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);

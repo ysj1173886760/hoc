@@ -1,4 +1,6 @@
 a = [1, 2, 3, 4]
 b = a
+c = a[1]
+print c
 a.append(5)
-print b
+print b[4]
