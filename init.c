@@ -78,6 +78,7 @@ static struct
 	{"call", call},
 	{"xpop", xpop},
 	{"constpush", constpush},
+	{"strpush", strpush},
 	{"varpush", varpush},
 	{"whilecode", whilecode},
 	{"forcode", forcode},

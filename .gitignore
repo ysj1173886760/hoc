@@ -1,0 +1,6 @@
+*.o
+x.tab.h
+y.tab.h
+hoc
+test/test
+test/test.cpp

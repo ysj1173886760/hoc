@@ -11,7 +11,7 @@ Symbol *keywordList = 0;
 Info *curDefiningFunction = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 1;
+int debugLevel = 0;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -91,6 +91,7 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	| stmtlist stmt
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
+	| STRING { $$ = code2(strpush, (Inst)$1); }
 	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
 	| VAR	 { $$ = code2(exprpush, (Inst)$1); }
 	| asgn
@@ -120,9 +121,7 @@ valuelist:	/* nothing */	{ $$ = 0; }
 	| NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
 	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; }
 prlist:	  expr			{ code(prexpr); }
-	| STRING		{ $$ = code2(prstr, (Inst)$1); }
 	| prlist ',' expr	{ code(prexpr); }
-	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
 	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
@@ -236,8 +235,16 @@ int yylex(void)		/* hoc6 */
 			*p = backslash(c);
 		}
 		*p = 0;
-		yylval.sym = (Symbol *)emalloc(strlen(sbuf)+1);
-		strcpy((char*)yylval.sym, sbuf);
+		Symbol *s = install(globalSymbolList, "", STRING, 0.0);
+
+		Object *newObj = (Object *)emalloc(sizeof(Object));
+		newObj->type = STRING;
+		newObj->size = strlen(sbuf);
+		newObj->u.str = (char *)emalloc(strlen(sbuf) * sizeof(char));
+		strcpy(newObj->u.str, sbuf);
+		s->u.objPtr = newObj;
+
+		yylval.sym = s;
 		return STRING;
 	}
 	switch (c) {

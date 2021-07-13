@@ -18,6 +18,7 @@ typedef struct Object
 	union
 	{
 		double *valuelist;
+		char *str;
 		Info *funcInfo;
 	} u;
 } Object;
@@ -30,7 +31,7 @@ typedef struct Symbol
 	{
 		Object *objPtr;		   /* VAR */
 		double (*ptr)(double); /* BLTIN */
-		char *str;			   /* STRING */
+		// char *str;			   /* STRING */
 	} u;
 	struct Symbol *next; /* to link to another */
 } Symbol;
@@ -70,7 +71,7 @@ extern void defineEnd(Symbol *);
 extern Datum pop(void);
 extern void initcode(void), push(Datum), xpop(void), constpush(void), listpush(void);
 
-extern void varpush(void);
+extern void strpush(void), varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
 extern void negate(void), power(void);
 extern void addeq(void), subeq(void), muleq(void), diveq(void), modeq(void);
@@ -103,6 +104,7 @@ extern void defnonly(char *);
 extern void warning(char *s, char *t);
 
 extern Datum double2Datum(double);
+extern Datum str2Datum(char *);
 extern double *valpop(void);
 extern Symbol *parseVar(Symbol *);
 extern void ret(void);
