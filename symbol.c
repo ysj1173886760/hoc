@@ -41,26 +41,6 @@ Symbol *install(Symbol *symList, char *s, int t, double d) /* install s in symbo
 	return sp;
 }
 
-Symbol *installstr(Symbol *symList, char *s, int t, char *str) /* install s in symbol table */
-{
-	Symbol *sp;
-
-	sp = emalloc(sizeof(Symbol));
-	sp->name = emalloc(strlen(s) + 1); /* +1 for '\0' */
-	strcpy(sp->name, s);
-	sp->type = t;
-
-	Object *newObj = (Object *)emalloc(sizeof(Object));
-	newObj->type = STRING;
-	newObj->size = strlen(str);
-	newObj->u.str = (char *)emalloc(sizeof(strlen(str)+1));
-	newObj->u.str = str;
-	sp->u.objPtr = newObj;
-
-	sp->next = symList; /* put at front of list */
-	return sp;
-}
-
 void *emalloc(unsigned n) /* check return from malloc */
 {
 	char *p;
@@ -78,16 +58,4 @@ Symbol *lookupThoughAddress(Symbol *symList, Symbol *p)
 		if (sp == p)
 			return sp;
 	return 0;
-}
-
-void Loop(Symbol *symList)
-{
-	Symbol *sp;
-	for (sp = symList; sp != (Symbol *)0; sp = sp->next)
-	{
-		printf("name: %s", sp->name);
-		printf("type: %d", sp->type);
-		printf("size: %d", sp->u.objPtr->size);
-		printf("obj->type: %d", sp->u.objPtr->type);
-	}
 }

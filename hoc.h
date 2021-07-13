@@ -37,7 +37,6 @@ typedef struct Symbol
 } Symbol;
 
 Symbol *install(Symbol *, char *, int, double);
-Symbol *installstr(Symbol *, char *, int, char *);
 Symbol *lookup(Symbol *, char *);
 
 typedef struct Datum

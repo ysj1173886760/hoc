@@ -11,7 +11,7 @@ Symbol *keywordList = 0;
 Info *curDefiningFunction = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 1;
+int debugLevel = 0;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -235,24 +235,16 @@ int yylex(void)		/* hoc6 */
 			*p = backslash(c);
 		}
 		*p = 0;
-
 		Symbol *s = install(globalSymbolList, "", STRING, 0.0);
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = STRING;
 		newObj->size = strlen(sbuf);
-		newObj->u.str = (char *)emalloc(sizeof(strlen(sbuf)+1));
-		newObj->u.str = sbuf;
+		newObj->u.str = (char *)emalloc(strlen(sbuf) * sizeof(char));
+		strcpy(newObj->u.str, sbuf);
 		s->u.objPtr = newObj;
 
-		printf("%s\n", newObj->u.str);
-
-		/* Symbol *s = installstr(globalSymbolList, "", STRING, sbuf); */
-
 		yylval.sym = s;
-
-		printf("yylex str: %s\n", s->u.objPtr->u.str);
-		printf("yylex str: %s\n", yylval.sym->u.objPtr->u.str);
 		return STRING;
 	}
 	switch (c) {

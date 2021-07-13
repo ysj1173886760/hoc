@@ -110,10 +110,9 @@ Datum str2Datum(char *str)
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = STRING;
 	d.u.obj->size = strlen(str);
-	d.u.obj->u.str = (char *)emalloc(sizeof(strlen(str)+1));
-	d.u.obj->u.str = str;
+	d.u.obj->u.str = (char *)emalloc(strlen(str) * sizeof(char));
+	strcpy(d.u.obj->u.str, str);
 
-	printf("str2Datum str: %s\n", d.u.obj->u.str);
 	return d;
 }
 
@@ -220,11 +219,8 @@ void strpush(void)
 {
 	Datum d;
 	Symbol *s = (Symbol *)*pc++;
-	printf("strpush s->str: %s\n", s->u.objPtr->u.str);
 	d = str2Datum(s->u.objPtr->u.str);
 	push(d);
-
-	printf("strpush str: %s\n", d.u.obj->u.str);
 }
 
 void listpush(void)
@@ -254,7 +250,7 @@ void varpush(void)
 	Symbol *var = parseVar(sp);
 	d.u.sym = var;
 	d.setflag = 1;
-	printf("varpush : %s\n", d.u.sym->name);
+	// printf("varpush : %s\n", d.u.sym->name);
 	push(d);
 }
 
@@ -672,12 +668,13 @@ void assign(void)
 			int size = d2.u.obj->size;
 			newObj->type = STRING;
 			newObj->size = size;
-			newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
-			newObj->u.str = d2.u.obj->u.str;
+			// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
+			newObj->u.str = (char *)emalloc(size * sizeof(char));
+			// newObj->u.str = d2.u.obj->u.str;
+			strcpy(newObj->u.str, d2.u.obj->u.str);
 			d1.u.sym->u.objPtr = newObj;
 			
-			printf("assign str size: %d\n", size);
-			printf("assign str: %s\n", d1.u.sym->u.objPtr->u.str);
+			// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
 		}
 		d1.u.sym->type = VAR;
 	}
@@ -777,11 +774,11 @@ void printtop(void) /* pop top value from stack, print it */
 			printf("%lf ", d.u.obj->u.valuelist[i]);
 	}
 	if (d.u.obj->type == STRING) {
-		printf("printtop str: %s\n", d.u.obj->u.str);
+		printf("\"%s\"\n", d.u.obj->u.str);
 	}
 }
 
-void prexpr(void) /* print numeric value */
+void prexpr(void) /* print expr value */
 {
 	Datum d;
 	d = pop();
@@ -799,7 +796,7 @@ void prexpr(void) /* print numeric value */
 	// a = "123" and print a ==> output: a
 	if (d.u.obj->type == STRING)
 	{
-		printf("prexpr str: %s\n", d.u.obj->u.str);
+		printf("\"%s\"\n", d.u.obj->u.str);
 	}
 }
 
