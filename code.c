@@ -108,12 +108,26 @@ void constpush(void)
 	push(d);
 }
 
+// TODO: bug here
 void strpush(void)
 {
-	// ?
+	// Datum d;
+	// d.sym = (Symbol *)pc[2];
+
+	// // printf("strpush: %s\n", d.sym->u.objPtr->u.str);
+	// if (d.sym == NULL) {
+	// 	printf("strpush: d.sym is null\n");
+	// }
+	// push(d);
+
+	printf("strpush begin\n");
 	Datum d;
-	d.sym = (Symbol *)(*pc++);
+	Symbol *s = (Symbol *)*pc++;
+	d.sym = s;
+	// printf("strpush: %s\n", s->u.objPtr->u.str);
+
 	push(d);
+	printf("strpush end\n");
 }
 
 void varpush(void)
@@ -603,32 +617,42 @@ void modeq(void)
 
 void printtop(void) /* pop top value from stack, print it */
 {
+	printf("printtop begin \n");
 	Datum d;
 	static Symbol *s; /* last value computed */
 	if (s == 0)
 		s = install(globalSymbolList, "_", VAR, 0.0);
 	d = pop();
-	printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal), d.val);
+	if (d.sym->type == STRING) {
+		printf("printtop: %s\n", d.sym->u.objPtr->u.str);
+	} 
+	// printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal), d.val);
 	// s->u.objPtrj= d.val;
+	printf("printtop end \n");
 }
 
 void prexpr(void) /* print numeric value */
 {
 	Datum d;
 	d = pop();
-	printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal)), d.val);
+	if (d.sym->type == STRING) {
+		printf("%s\n", d.sym->u.objPtr->u.str);
+	}
+	// printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.numberVal)), d.val);
 }
 
 void prstr(void) /* print string value */
 {
+	printf("prstr begin\n");
 	/* 为什么能用？ */
-	Symbol *s = (Symbol *)*pc++;
-	printf("%s\n", s->u.objPtr->u.str);
+	// Symbol *s = (Symbol *)*pc++;
+	// printf("%s\n", s->u.objPtr->u.str);
 
 	// Datum d;
 	// d = pop();
 	// printf("%s\n", d.sym->u.objPtr->u.str);
 	// printf("str'size: %d\n", (int)strlen(d.sym->u.objPtr->u.str));
+	printf("prstr end\n");
 }
 
 void varread(void) /* read into variable */

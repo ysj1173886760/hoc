@@ -90,6 +90,7 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	| stmtlist stmt
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
+	| STRING { $$ = code2(strpush, (Inst)$1); }
 	| VAR	 { $$ = code3(varpush, (Inst)$1, eval); }
 	| asgn
 	| VAR begin '(' arglist ')'
@@ -115,9 +116,9 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
 prlist:	  expr			{ code(prexpr); }
-	| STRING		{ $$ = code3(strpush, prstr, (Inst)$1); }
+	/* | STRING		{ $$ = code3(strpush, prstr, (Inst)$1); } */
 	| prlist ',' expr	{ code(prexpr); }
-	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
+	/* | prlist ',' STRING	{ code2(prstr, (Inst)$3); } */
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
 	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
