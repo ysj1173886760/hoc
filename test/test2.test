@@ -1,7 +1,7 @@
-proc double(){
-	if($1 > 1){
-		double($1/2)
+func double(a){
+	if(a > 1){
+		double(a/2)
 	}
-	print($1)
+	print(a)
 }
 double(1024)

@@ -11,7 +11,7 @@ Symbol *keywordList = 0;
 Info *curDefiningFunction = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
-int debugLevel = 0;
+int debugLevel = 1;
 int debugFlag = hocExec | hocCompile;
 
 void yyerror(char* s);
@@ -21,11 +21,11 @@ void yyerror(char* s);
 	Inst	*inst;	/* machine instruction */
 	long	narg;	/* number of arguments */
 }
-%token	<sym>	NUMBER STRING PRINT VAR BLTIN UNDEF WHILE FOR IF ELSE FUNCTION PROCEDURE
-%token	<sym>	RETURN FUNC PROC READ GLOBAL
+%token	<sym>	NUMBER LIST STRING PRINT VAR BLTIN UNDEF FUNCTION
+%token	<sym>	RETURN FUNC PROC READ GLOBAL WHILE FOR IF ELSE
 %type	<inst>	expr stmt asgn prlist stmtlist
-%type	<inst>	cond while for if begin end 
-%type	<narg>	arglist vflist
+%type	<inst>	cond while for if begin end
+%type	<narg>	arglist vflist valuelist
 %right	'=' ADDEQ SUBEQ MULEQ DIVEQ MODEQ
 %left	OR
 %left	AND
@@ -43,7 +43,7 @@ list:	  /* nothing */
 	| list expr '\n'  { code2(printtop, STOP); return 1; }
 	| list error '\n' { yyerrok; }
 	;
-asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
+asgn:	  VAR '=' { code(setFlag); /*var*/ } expr { code(setFlag); /*val*/ code3(varpush,(Inst)$1,assign); $$=$4; }
 	| VAR ADDEQ expr	{ code3(varpush,(Inst)$1,addeq); $$=$3; }
 	| VAR SUBEQ expr	{ code3(varpush,(Inst)$1,subeq); $$=$3; }
 	| VAR MULEQ expr	{ code3(varpush,(Inst)$1,muleq); $$=$3; }
@@ -51,9 +51,9 @@ asgn:	  VAR '=' expr { code3(varpush,(Inst)$1,assign); $$=$3; }
 	| VAR MODEQ expr	{ code3(varpush,(Inst)$1,modeq); $$=$3; }
 	;
 stmt:	  expr	{ code(xpop); }
-	| RETURN { defnonly("return"); code(procret); }
+	| RETURN { defnonly("return"); code(ret); }
 	| RETURN expr
-	        { defnonly("return"); $$=$2; code(funcret); }
+	        { defnonly("return"); $$=$2; code(ret); }
 	| PRINT prlist	{ $$ = $2; }
 	| while '(' cond ')' stmt end {
 		($1)[1] = (Inst)$5;	/* body of loop */
@@ -71,7 +71,8 @@ stmt:	  expr	{ code(xpop); }
 		($1)[2] = (Inst)$8;	/* elsepart */
 		($1)[3] = (Inst)$9; }	/* end, if cond fails */
 	| '{' stmtlist '}'	{ $$ = $2; }
-	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }	
+	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }
+	| VAR '.' VAR '(' valuelist ')' { code3(oprcall, (Inst)$1, (Inst)$3); code((Inst)$5); }	
 	;
 cond:	   expr 	{ code(STOP); }
 	;
@@ -90,10 +91,11 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	| stmtlist stmt
 	;
 expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
-	| VAR	 { $$ = code3(varpush, (Inst)$1, eval); }
+	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
+	| VAR	 { $$ = code2(exprpush, (Inst)$1); }
 	| asgn
-	| VAR begin '(' arglist ')'
-		{ $$ = $2; code3(call,(Inst)$1,(Inst)$4); }
+	| VAR begin '(' { code(setFlag); /*val*/ } arglist { code(setFlag); /*var*/ } ')'
+		{ $$ = $2; code3(call,(Inst)$1,(Inst)$5); }
 	| READ '(' VAR ')' { $$ = code2(varread, (Inst)$3); }
 	| BLTIN '(' expr ')' { $$=$3; code2(bltin, (Inst)$1->u.ptr); }
 	| '(' expr ')'	{ $$ = $2; }
@@ -114,15 +116,18 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| expr OR expr	{ code(or); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
+valuelist:	/* nothing */	{ $$ = 0; }	
+	| NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
+	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; }
 prlist:	  expr			{ code(prexpr); }
 	| STRING		{ $$ = code2(prstr, (Inst)$1); }
 	| prlist ',' expr	{ code(prexpr); }
 	| prlist ',' STRING	{ code2(prstr, (Inst)$3); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
-	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
+	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
 	| PROC VAR { $2->type=VAR; defineBegin($2); }
-	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
+	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
 	;
 arglist:  /* nothing */ 	{ $$ = 0; }
 	| expr			{ $$ = 1; }
@@ -174,7 +179,8 @@ int yylex(void)		/* hoc6 */
 			lineno++;
 		return c;
 	}
-	if (c == '.' || isdigit(c)) {	/* number */
+	// here have complex with A.opr, so I delete c == '.'
+	if (isdigit(c)) {	/* number */
 		double d;
 		ungetc(c, fin);
 		fscanf(fin, "%lf", &d);
@@ -235,19 +241,19 @@ int yylex(void)		/* hoc6 */
 		return STRING;
 	}
 	switch (c) {
-	case '+':	return follow('=', ADDEQ, '+');
-	case '-':	return follow('=', SUBEQ, '-');
-	case '*':	return follow('=', MULEQ, '*');
-	case '/':	return follow('=', DIVEQ, '/');
-	case '%':	return follow('=', MODEQ, '%');
-	case '>':	return follow('=', GE, GT);
-	case '<':	return follow('=', LE, LT);
-	case '=':	return follow('=', EQ, '=');
-	case '!':	return follow('=', NE, NOT);
-	case '|':	return follow('|', OR, '|');
-	case '&':	return follow('&', AND, '&');
-	case '\n':	lineno++; return '\n';
-	default:	return c;
+		case '+':	return follow('=', ADDEQ, '+');
+		case '-':	return follow('=', SUBEQ, '-');
+		case '*':	return follow('=', MULEQ, '*');
+		case '/':	return follow('=', DIVEQ, '/');
+		case '%':	return follow('=', MODEQ, '%');
+		case '>':	return follow('=', GE, GT);
+		case '<':	return follow('=', LE, LT);
+		case '=':	return follow('=', EQ, '=');
+		case '!':	return follow('=', NE, NOT);
+		case '|':	return follow('|', OR, '|');
+		case '&':	return follow('&', AND, '&');
+		case '\n':	lineno++; return '\n';
+		default:	return c;
 	}
 }
 
@@ -369,7 +375,7 @@ void printProg(Inst *start) {
 				Symbol *sp = lookupThoughAddress(globalSymbolList, (Symbol *)(*cur));
 				if (sp) {
 					if (strcmp(sp->name, "") == 0) {
-						printf("%lf", *(sp->u.objPtr->u.numberVal));
+						printf("%lf", *(sp->u.objPtr->u.valuelist));
 					} else {
 						printf("%s", sp->name);
 					}
@@ -400,6 +406,7 @@ int main(int argc, char* argv[])	/* hoc6 */
 
 	progname = argv[0];
 	init();
+	init_LIST_opr();
 
 	// normal argument list, argc - 1 means we don't count the proc name, argv + 1 means we are starting from the first argument
 	gargv = argv+1;
