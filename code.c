@@ -260,6 +260,8 @@ void valpush(void)
 	Symbol *sp = (Symbol *)(*pc++);
 	Symbol *var = parseVar(sp);
 
+	if (!var->u.objPtr)
+		execerror("valpush error: ", var->name);
 	double val = *var->u.objPtr->u.valuelist;
 	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
