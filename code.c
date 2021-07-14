@@ -734,7 +734,6 @@ void assign(void)
 	push(d2);
 }
 
-// TODO: check undefined var, += , -=, *=, /=
 void addeq(void)
 {
 	// a += b ==> d2: a, d1: b
