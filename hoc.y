@@ -240,7 +240,7 @@ int yylex(void)		/* hoc6 */
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = STRING;
 		newObj->size = strlen(sbuf);
-		newObj->u.str = (char *)emalloc(strlen(sbuf) * sizeof(char));
+		newObj->u.str = (char *)emalloc((strlen(sbuf)+1) * sizeof(char));
 		strcpy(newObj->u.str, sbuf);
 		s->u.objPtr = newObj;
 

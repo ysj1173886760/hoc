@@ -110,14 +110,12 @@ Datum str2Datum(char *str)
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = STRING;
 	d.u.obj->size = strlen(str);
-	d.u.obj->u.str = (char *)emalloc(strlen(str) * sizeof(char));
+	d.u.obj->u.str = (char *)emalloc((strlen(str)+1) * sizeof(char));
 	strcpy(d.u.obj->u.str, str);
 
 	return d;
 }
 
-// TODO: the prog did't work when use a = a + b
-// 尽管已经定义的变量，仍会说未定义
 // problem : double->double *
 double *valpop(void)
 {
@@ -127,7 +125,11 @@ double *valpop(void)
 		return d.u.obj->u.valuelist;
 	// d contains sym
 	Symbol *sp = parseVar(d.u.sym);
-	verify(sp);
+	// TODO: if use this, there are some problem when use a = a+b
+	// verify(sp);
+
+	// if (!sp->u.objPtr)
+	// 	execerror("error", "");
 	return sp->u.objPtr->u.valuelist;
 }
 
@@ -264,14 +266,15 @@ void valpush(void)
 
 	if (!var->u.objPtr)
 		execerror("valpush error: ", var->name);
-	double val = *var->u.objPtr->u.valuelist;
+	double val = *(var->u.objPtr->u.valuelist);
 	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = var->u.objPtr->type;
 	d.u.obj->size = var->u.objPtr->size;
 	d.u.obj->u.valuelist = (double *)emalloc(d.u.obj->size * sizeof(double));
-	for (int i = 0; i < d.u.obj->size; ++i)
-		d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
+	// for (int i = 0; i < d.u.obj->size; ++i)
+	// 	d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
+	d.u.obj->u.valuelist = var->u.objPtr->u.valuelist;
 
 	push(d);
 }
@@ -466,18 +469,53 @@ void bltin(void)
 	push(d);
 }
 
+Object *objpop(void)
+{
+	Datum d = pop();
+	if (d.setflag == 0)
+		return d.u.obj;
+	return d.u.sym->u.objPtr;
+}
+
+// TODO: undefined a and b, a = a + b, prog broken
 void add(void)
 {
-	// Datum d1, d2;
-	// d2 = pop();
-	// d1 = pop();
-	// d1.val += d2.val;
-	// push(d1);
+	Datum d;
+	Object *d1, *d2;
+	d2 = objpop();
+	d1 = objpop();
+	
+	// bug here 
+	/* 调用 execerror 之后，无法定义变量，即使定义了，也没有值 */
+	if (!d1 || !d2)
+	{
+		execerror("add error, ", "d1 or d2 is undefined");
+	}
 
-	double d1, d2;
-	d2 = *valpop();
-	d1 = *valpop();
-	Datum d = double2Datum(d1 + d2);
+	if (d1->type == NUMBER && d2->type == NUMBER) 
+	{
+		d = double2Datum(*(d1->u.valuelist) + *(d2->u.valuelist));
+	} else if (d1->type == STRING && d2->type == STRING)
+	{
+		char *tmp = (char *)emalloc((strlen(d1->u.str)+strlen(d2->u.str)+1) * sizeof(char));
+		strcpy(tmp, d1->u.str);
+		strcat(tmp, d2->u.str);
+		d = str2Datum(tmp);
+	} else 
+	{
+		d.setflag = 1;
+		d.u.sym = (Symbol *)emalloc(sizeof(Symbol));
+		d.u.sym->type = (long int)emalloc(sizeof(long int));
+		d.u.sym->type = UNDEF;
+		push(d);
+		execerror("View variable types", "");
+	}
+
+	// double d1, d2;
+	// d2 = *valpop();
+	// d1 = *valpop();
+	// Datum d = double2Datum(d1 + d2);
+
 	push(d);
 }
 
@@ -665,14 +703,17 @@ void assign(void)
 			newObj->u.valuelist = d2.u.obj->u.valuelist;
 		} else if (d2.u.obj->type == STRING)
 		{
-			newObj->u.str = (char *)emalloc(newObj->size * sizeof(char));
+			newObj->u.str = (char *)emalloc((newObj->size+1) * sizeof(char));
 			strcpy(newObj->u.str, d2.u.obj->u.str);
 		}
-			d1.u.sym->u.objPtr = newObj;
+		d1.u.sym->u.objPtr = newObj;
+		d1.u.sym->type = VAR;
 	} 
 	// d2 is sym
 	else 
 	{
+		if (d2.u.sym->type == UNDEF)
+			execerror("assign error", d2.u.sym->name);
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = d2.u.sym->u.objPtr->type;
 		newObj->size = d2.u.sym->u.objPtr->size;
@@ -689,10 +730,11 @@ void assign(void)
 			newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
 		} else if (d2.u.sym->u.objPtr->type == STRING)
 		{
-			newObj->u.str = (char *)emalloc(newObj->size * sizeof(char));
+			newObj->u.str = (char *)emalloc((newObj->size+1) * sizeof(char));
 			strcpy(newObj->u.str, d2.u.sym->u.objPtr->u.str);
 		}
 		d1.u.sym->u.objPtr = newObj;
+		d1.u.sym->type = VAR;
 	}
 	// // case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
 	// if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
@@ -841,7 +883,7 @@ void prexpr(void) /* print expr value */
 	Datum d;
 	d = pop();
 	if (d.u.obj->type == NUMBER)
-		printf("prexpr num: %.*g \n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+		printf("%.*g \n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
 	// here may have some problems
 	if (d.u.obj->type == LIST)
 	{
