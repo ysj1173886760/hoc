@@ -227,7 +227,6 @@ void listpush(void)
 {
 	Datum d;
 	long size = (long)*pc++;
-	printf("size: %ld\n", size);
 	double *valuelist = (double *)emalloc(size * sizeof(double));
 	for (int i = size - 1; i >= 0; --i)
 	{
@@ -425,7 +424,6 @@ void call(void) /* call a function */
 // maybe you can combine call and oprcall into a general_call, update in future
 void oprcall(void)
 {
-	printf("a\n");
 	Symbol *name_sp = (Symbol *)pc[0];
 	Symbol *sp = parseVar(name_sp);
 	cur_opr_sym = sp;
@@ -788,9 +786,8 @@ void prexpr(void) /* print expr value */
 	if (d.u.obj->type == LIST)
 	{
 		int size = d.u.obj->size;
-		printf("list member : ");
 		for (int i = 0; i < size; ++i)
-			printf("%lf ", d.u.obj->u.valuelist[i]);
+			printf("%.2lf ", d.u.obj->u.valuelist[i]);
 	}
 	// print "123", "321" ==> output: "321", "321"
 	// a = "123" and print a ==> output: a
