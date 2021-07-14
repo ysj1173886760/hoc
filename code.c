@@ -116,6 +116,8 @@ Datum str2Datum(char *str)
 	return d;
 }
 
+// TODO: the prog did't work when use a = a + b
+// 尽管已经定义的变量，仍会说未定义
 // problem : double->double *
 double *valpop(void)
 {
@@ -632,6 +634,7 @@ void assign(void)
 	Datum d1, d2;
 	d1 = pop();
 	d2 = pop();
+	printf("d1.flag: %d\td2.flag: %d\n", d1.setflag, d2.setflag);
 	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
 		execerror("assignment to non-variable", d1.u.sym->name);
 	if (d1.u.sym->u.objPtr)
@@ -652,24 +655,20 @@ void assign(void)
 
 		if (d2.u.obj->type == NUMBER) 
 		{
-			// printf("NUMBER\n");
 			newObj->u.valuelist = (double *)emalloc(sizeof(double));
-			newObj->u.valuelist = d2.u.obj->u.valuelist;
-			d1.u.sym->u.objPtr = newObj;
+			// newObj->u.valuelist = d2.u.obj->u.valuelist;
+			double val = *(d2.u.obj->u.valuelist);
+			*(newObj->u.valuelist) = val;
 		} else if (d2.u.obj->type == LIST)
 		{
 			newObj->u.valuelist = (double *)emalloc(newObj->size * sizeof(double));
 			newObj->u.valuelist = d2.u.obj->u.valuelist;
-			// for (int i = 0; i < newObj->size; i++) {
-			// 	newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
-			// }
-			d1.u.sym->u.objPtr = newObj;
 		} else if (d2.u.obj->type == STRING)
 		{
 			newObj->u.str = (char *)emalloc(newObj->size * sizeof(char));
 			strcpy(newObj->u.str, d2.u.obj->u.str);
-			d1.u.sym->u.objPtr = newObj;
 		}
+			d1.u.sym->u.objPtr = newObj;
 	} 
 	// d2 is sym
 	else 
@@ -678,23 +677,22 @@ void assign(void)
 		newObj->type = d2.u.sym->u.objPtr->type;
 		newObj->size = d2.u.sym->u.objPtr->size;
 
-		// TODO: bug when NUMBER
 		if (d2.u.sym->u.objPtr->type == NUMBER)
 		{
 			newObj->u.valuelist = (double *)emalloc(sizeof(double));
-			newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
-			d1.u.sym->u.objPtr = newObj;
+			// newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
+			double val = *(d2.u.sym->u.objPtr->u.valuelist);
+			*(newObj->u.valuelist) = val;
 		} else if (d2.u.sym->u.objPtr->type == LIST) 
 		{
 			newObj->u.valuelist = (double *)emalloc(newObj->size * sizeof(double));
 			newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
-			d1.u.sym->u.objPtr = newObj;
 		} else if (d2.u.sym->u.objPtr->type == STRING)
 		{
 			newObj->u.str = (char *)emalloc(newObj->size * sizeof(char));
 			strcpy(newObj->u.str, d2.u.sym->u.objPtr->u.str);
-			d1.u.sym->u.objPtr = newObj;
 		}
+		d1.u.sym->u.objPtr = newObj;
 	}
 	// // case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
 	// if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
