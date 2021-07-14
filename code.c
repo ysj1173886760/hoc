@@ -91,31 +91,6 @@ void test(void)
 	printf("test\n");
 }
 
-Datum double2Datum(double val)
-{
-	Datum d;
-	d.setflag = 0;
-	d.u.obj = (Object *)emalloc(sizeof(Object));
-	d.u.obj->type = NUMBER;
-	d.u.obj->size = 1;
-	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
-	*(d.u.obj->u.valuelist) = val;
-	return d;
-}
-
-Datum str2Datum(char *str)
-{
-	Datum d;
-	d.setflag = 0;
-	d.u.obj = (Object *)emalloc(sizeof(Object));
-	d.u.obj->type = STRING;
-	d.u.obj->size = strlen(str);
-	d.u.obj->u.str = (char *)emalloc(strlen(str) * sizeof(char));
-	strcpy(d.u.obj->u.str, str);
-
-	return d;
-}
-
 // problem : double->double *
 double *valpop(void)
 {
@@ -127,6 +102,11 @@ double *valpop(void)
 	Symbol *sp = parseVar(d.u.sym);
 	verify(sp);
 	return sp->u.objPtr->u.valuelist;
+}
+
+Object *objpop() {
+	Datum d = pop();
+	return d.u.obj;
 }
 
 void debugC(int flag, int level, const char *format, ...)
@@ -206,20 +186,12 @@ void xpop(void) /* for when no value is wanted */
 	--stackp;
 }
 
-void constpush(void)
+void objpush(void)
 {
 	Datum d;
-	double tmp;
-	tmp = *(((Symbol *)*pc++)->u.objPtr->u.valuelist);
-	d = double2Datum(tmp);
-	push(d);
-}
-
-void strpush(void)
-{
-	Datum d;
-	Symbol *s = (Symbol *)*pc++;
-	d = str2Datum(s->u.objPtr->u.str);
+	d.u.obj = (Object *)(*pc);
+	d.setflag = 0;
+	pc++;
 	push(d);
 }
 
@@ -249,34 +221,17 @@ void varpush(void)
 	Symbol *var = parseVar(sp);
 	d.u.sym = var;
 	d.setflag = 1;
-	// printf("varpush : %s\n", d.u.sym->name);
-	push(d);
-}
-
-void valpush(void)
-{
-	Datum d;
-	Symbol *sp = (Symbol *)(*pc++);
-	Symbol *var = parseVar(sp);
-
-	double val = *var->u.objPtr->u.valuelist;
-	d.setflag = 0;
-	d.u.obj = (Object *)emalloc(sizeof(Object));
-	d.u.obj->type = var->u.objPtr->type;
-	d.u.obj->size = var->u.objPtr->size;
-	d.u.obj->u.valuelist = (double *)emalloc(d.u.obj->size * sizeof(double));
-	for (int i = 0; i < d.u.obj->size; ++i)
-		d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
-
 	push(d);
 }
 
 void exprpush(void)
 {
-	if (flag)
-		valpush();
-	else
-		varpush();
+	Datum d;
+	Symbol *sp = (Symbol *)(*pc++);
+	Symbol *var = parseVar(sp);
+	d.u.obj = var->u.objPtr;
+	d.setflag = 0;
+	push(d);
 }
 
 void whilecode(void)
@@ -284,7 +239,12 @@ void whilecode(void)
 	Inst *savepc = pc;
 
 	execute(savepc + 2); /* condition */
-	double cond = *valpop();
+	Object *obj = objpop();
+	if (obj->type != NUMBER) {
+		execerror("expect number when checking condition", "");
+	}
+	double cond = *(obj->u.valuelist);
+	
 	while (cond)
 	{
 		execute(*((Inst **)(savepc))); /* body */
@@ -304,7 +264,14 @@ void forcode(void)
 	execute(savepc + 4); /* precharge */
 	pop();
 	execute(*((Inst **)(savepc))); /* condition */
-	double cond = *valpop();
+
+	Object *obj = objpop();
+	if (obj->type != NUMBER) {
+		execerror("expect number when checking condition", "");
+	}
+
+	double cond = *(obj->u.valuelist);
+
 	while (cond)
 	{
 		execute(*((Inst **)(savepc + 2))); /* body */
@@ -325,7 +292,14 @@ void ifcode(void)
 	Inst *savepc = pc; /* then part */
 
 	execute(savepc + 3); /* condition */
-	double cond = *valpop();
+
+	Object *obj = objpop();
+	if (obj->type != NUMBER) {
+		execerror("expect number when checking condition", "");
+	}
+
+	double cond = *(obj->u.valuelist);
+
 	if (cond)
 		execute(*((Inst **)(savepc)));
 	else if (*((Inst **)(savepc + 1))) /* else part? */
@@ -363,13 +337,21 @@ void setArg(int narg)
 	curDefiningFunction->nargs = narg;
 }
 
+// global binding also affects the unchangeable object. this should be fixed
 void globalBinding()
 {
 	Symbol *sp = ((Symbol *)*pc++);
+	
+	// release the previous obj
 	Symbol *var = lookup(fp->varList, sp->name);
+	var->u.objPtr = NULL;
+	
 	Symbol *globalVar = lookup(globalSymbolList, sp->name);
 	if (!globalVar)
 		execerror(var->name, "can not find global one");
+	if (fp == frame) 
+		execerror(var->name, "should not use global in global field");
+	
 	var->u.objPtr = globalVar->u.objPtr;
 }
 
@@ -379,7 +361,7 @@ void call(void) /* call a function */
 									   /* for function */
 	Symbol *sp = parseVar(name_sp);
 	if (sp->u.objPtr == 0 || sp->u.objPtr->type != FUNCTION)
-		execerror(sp->name, "not a function object");
+		execerror(sp->name, "is not a function object");
 	if (fp++ >= &frame[NFRAME - 1])
 		execerror(sp->name, "call nested too deeply");
 
@@ -390,7 +372,7 @@ void call(void) /* call a function */
 
 	fp->retpc = pc + 2;
 
-	// debugC(hocExec, 1, "callings %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
+	debugC(hocExec, 1, "callings %s nargs %d type %d\n", sp->name, fp->nargs, sp->type);
 	// debugC(hocExec, 5, "entry address %p  return address %p\n", sp->u.defn, fp->retpc);
 
 	// instantiate the variables
@@ -398,22 +380,17 @@ void call(void) /* call a function */
 	{
 		if (strcmp(cur->name, "") != 0)
 		{
-			fp->varList = install(fp->varList, cur->name, VAR, 0.0);
+			fp->varList = install(fp->varList, cur->name, VAR);
 		}
 	}
 	// bind the args, currently, we can only bind the numbers, this should be amend to bind the object directly
 	for (Symbol *cur = funcInfo->argBegin; cur != 0; cur = cur->next)
 	{
-		double d = *valpop();
+		Object *obj = objpop();
 		if (strcmp(cur->name, "") != 0)
 		{
-			fp->varList = install(fp->varList, cur->name, VAR, 0.0);
-			Object *newObj = (Object *)emalloc(sizeof(Object));
-			newObj->type = NUMBER;
-			newObj->size = 1;
-			newObj->u.valuelist = (double *)emalloc(sizeof(double));
-			*(newObj->u.valuelist) = d;
-			fp->varList->u.objPtr = newObj;
+			fp->varList = install(fp->varList, cur->name, VAR);
+			fp->varList->u.objPtr = obj;
 		}
 	}
 
@@ -444,12 +421,29 @@ void oprcall(void)
 	pc = (Inst *)retpc;
 }
 
+Datum double2Datum(double val)
+{
+	Datum d;
+	d.setflag = 0;
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = NUMBER;
+	d.u.obj->size = 1;
+	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
+	*(d.u.obj->u.valuelist) = val;
+	return d;
+}
+
 void ret(void) /* common return from func or proc */
 {
 	int i;
 	pc = (Inst *)fp->retpc;
 	--fp;
 	returning = 1;
+}
+
+void procret(void) /* common return from func or proc */
+{
+	execerror("program returning with no value", "");
 }
 
 void bltin(void)
@@ -520,10 +514,25 @@ void mod(void)
 
 void negate(void)
 {
-	// Datum d;
-	// d = pop();
-	// d.val = -d.val;
-	// push(d);
+	double val = *valpop();
+	Datum d = double2Datum(-val);
+	push(d);
+}
+
+void printStack() {
+	printf("printing stack\n");
+	for (Datum *cur = stackp - 1; cur >= stack; cur--) {
+		if (cur->setflag == 0) {
+			printf("obj %p\n", cur->u.obj);
+			if (cur->u.obj->type == STRING) {
+				printf("obj: string\n");
+			} else {
+				printf("obj: %lf\n", *(cur->u.obj->u.valuelist));
+			}
+		} else {
+			printf("sym: %s\n", cur->u.sym->name);
+		}
+	}
 }
 
 void verify(Symbol *s)
@@ -590,11 +599,9 @@ void ne(void)
 
 void and (void)
 {
-	// Datum d1, d2;
-	// d2 = pop();
-	// d1 = pop();
-	// d1.val = (double)(d1.val != 0.0 && d2.val != 0.0);
-	// push(d1);
+	double d1 = *valpop();
+	double d2 = *valpop();
+	push(double2Datum((double)(d1 != 0 && d2 != 0)));
 }
 
 void or (void)
@@ -630,55 +637,57 @@ void assign(void)
 	d2 = pop();
 	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
 		execerror("assignment to non-variable", d1.u.sym->name);
-	if (d1.u.sym->u.objPtr)
-	{
-		if (d1.u.sym->u.objPtr->type == NUMBER)
-			free(d1.u.sym->u.objPtr->u.valuelist);
-		free(d1.u.sym->u.objPtr);
-	}
-	// case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
-	if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
-	{
-		Object *newObj = (Object *)emalloc(sizeof(Object));
-		// newObj->type = d2.u.obj->type;
-		// newObj->size = d2.u.obj->size;
-		if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
-		{
-			newObj->type = NUMBER;
-			newObj->size = 1;
-			newObj->u.valuelist = (double *)emalloc(sizeof(double));
-			d1.u.sym->u.objPtr = newObj;
-			double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
-			*(d1.u.sym->u.objPtr->u.valuelist) = val;
-		}
-		else if (d2.u.obj->type == LIST)
-		{
-			int size = d2.u.obj->size;
-			newObj->type = LIST;
-			newObj->size = size;
-			newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
-			for (int i = 0; i < size; ++i)
-				newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
-			d1.u.sym->u.objPtr = newObj;
-		}
-		else if (d2.u.obj->type == STRING)
-		{
-			int size = d2.u.obj->size;
-			newObj->type = STRING;
-			newObj->size = size;
-			// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
-			newObj->u.str = (char *)emalloc(size * sizeof(char));
-			// newObj->u.str = d2.u.obj->u.str;
-			strcpy(newObj->u.str, d2.u.obj->u.str);
-			d1.u.sym->u.objPtr = newObj;
+	d1.u.sym->u.objPtr = d2.u.obj;
+	d1.u.sym->type = VAR;
+	// if (d1.u.sym->u.objPtr)
+	// {
+	// 	if (d1.u.sym->u.objPtr->type == NUMBER)
+	// 		free(d1.u.sym->u.objPtr->u.valuelist);
+	// 	free(d1.u.sym->u.objPtr);
+	// }
+	// // case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
+	// if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
+	// {
+	// 	Object *newObj = (Object *)emalloc(sizeof(Object));
+	// 	// newObj->type = d2.u.obj->type;
+	// 	// newObj->size = d2.u.obj->size;
+	// 	if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
+	// 	{
+	// 		newObj->type = NUMBER;
+	// 		newObj->size = 1;
+	// 		newObj->u.valuelist = (double *)emalloc(sizeof(double));
+	// 		d1.u.sym->u.objPtr = newObj;
+	// 		double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
+	// 		*(d1.u.sym->u.objPtr->u.valuelist) = val;
+	// 	}
+	// 	else if (d2.u.obj->type == LIST)
+	// 	{
+	// 		int size = d2.u.obj->size;
+	// 		newObj->type = LIST;
+	// 		newObj->size = size;
+	// 		newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
+	// 		for (int i = 0; i < size; ++i)
+	// 			newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
+	// 		d1.u.sym->u.objPtr = newObj;
+	// 	}
+	// 	else if (d2.u.obj->type == STRING)
+	// 	{
+	// 		int size = d2.u.obj->size;
+	// 		newObj->type = STRING;
+	// 		newObj->size = size;
+	// 		// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
+	// 		newObj->u.str = (char *)emalloc(size * sizeof(char));
+	// 		// newObj->u.str = d2.u.obj->u.str;
+	// 		strcpy(newObj->u.str, d2.u.obj->u.str);
+	// 		d1.u.sym->u.objPtr = newObj;
 			
-			// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
-		}
-		d1.u.sym->type = VAR;
-	}
-	// case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
-	else if (d2.u.sym->u.objPtr->type == LIST)
-		d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
+	// 		// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
+	// 	}
+	// 	d1.u.sym->type = VAR;
+	// }
+	// // case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
+	// else if (d2.u.sym->u.objPtr->type == LIST)
+	// 	d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
 	push(d2);
 }
 
@@ -762,17 +771,17 @@ void printtop(void) /* pop top value from stack, print it */
 	Datum d;
 	d = pop();
 	if (d.u.obj->type == NUMBER)
-		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+		printf("%.*g\n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
 	// here may have some problems
 	if (d.u.obj->type == LIST)
 	{
 		int size = d.u.obj->size;
-		printf("list member : ");
 		for (int i = 0; i < size; ++i)
 			printf("%lf ", d.u.obj->u.valuelist[i]);
+		printf("\n");
 	}
 	if (d.u.obj->type == STRING) {
-		printf("\"%s\"\n", d.u.obj->u.str);
+		printf("%s\n", d.u.obj->u.str);
 	}
 }
 
@@ -781,7 +790,7 @@ void prexpr(void) /* print expr value */
 	Datum d;
 	d = pop();
 	if (d.u.obj->type == NUMBER)
-		printf("prexpr num: %.*g \n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+		printf("%.*g", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
 	// here may have some problems
 	if (d.u.obj->type == LIST)
 	{
@@ -793,7 +802,7 @@ void prexpr(void) /* print expr value */
 	// a = "123" and print a ==> output: a
 	if (d.u.obj->type == STRING)
 	{
-		printf("\"%s\"\n", d.u.obj->u.str);
+		printf("%s", d.u.obj->u.str);
 	}
 }
 

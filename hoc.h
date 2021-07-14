@@ -36,7 +36,7 @@ typedef struct Symbol
 	struct Symbol *next; /* to link to another */
 } Symbol;
 
-Symbol *install(Symbol *, char *, int, double);
+Symbol *install(Symbol *, char *, int);
 Symbol *lookup(Symbol *, char *);
 
 typedef struct Datum
@@ -69,7 +69,7 @@ extern void execerror(char *, char *);
 extern void defineBegin(Symbol *), verify(Symbol *);
 extern void defineEnd(Symbol *);
 extern Datum pop(void);
-extern void initcode(void), push(Datum), xpop(void), constpush(void), listpush(void);
+extern void initcode(void), push(Datum), xpop(void), objpush(void), listpush(void);
 
 extern void strpush(void), varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
@@ -85,7 +85,7 @@ extern void gt(void), lt(void), eq(void), ge(void), le(void), ne(void);
 extern void and (void), or (void), not(void);
 extern void ifcode(void), whilecode(void), forcode(void);
 extern void call(void), oprcall(void);
-// extern void funcret(void), procret(void);
+extern void procret(void);
 // extern void preinc(void), predec(void), postinc(void), postdec(void);
 extern void execute(Inst *);
 extern void printtop(void);
@@ -113,3 +113,4 @@ extern void exprpush(void);
 
 extern void test(void);
 extern void setFlag(void);
+extern void printStack();

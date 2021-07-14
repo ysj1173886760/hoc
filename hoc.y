@@ -19,10 +19,12 @@ void yyerror(char* s);
 %union {
 	Symbol	*sym;	/* symbol table pointer */
 	Inst	*inst;	/* machine instruction */
+	Object *obj;
 	long	narg;	/* number of arguments */
 }
-%token	<sym>	NUMBER LIST STRING PRINT VAR BLTIN UNDEF FUNCTION
-%token	<sym>	RETURN FUNC PROC READ GLOBAL WHILE FOR IF ELSE
+%token	<sym>	PRINT VAR BLTIN UNDEF FUNCTION
+%token	<sym>	RETURN FUNC READ GLOBAL WHILE FOR IF ELSE
+%token 	<obj>	NUMBER STRING LIST
 %type	<inst>	expr stmt asgn prlist stmtlist
 %type	<inst>	cond while for if begin end
 %type	<narg>	arglist vflist valuelist
@@ -43,7 +45,7 @@ list:	  /* nothing */
 	| list expr '\n'  { code2(printtop, STOP); return 1; }
 	| list error '\n' { yyerrok; }
 	;
-asgn:	  VAR '=' { code(setFlag); /*var*/ } expr { code(setFlag); /*val*/ code3(varpush,(Inst)$1,assign); $$=$4; }
+asgn:	  VAR '=' expr  { code3(varpush,(Inst)$1,assign); $$=$3; }
 	| VAR ADDEQ expr	{ code3(varpush,(Inst)$1,addeq); $$=$3; }
 	| VAR SUBEQ expr	{ code3(varpush,(Inst)$1,subeq); $$=$3; }
 	| VAR MULEQ expr	{ code3(varpush,(Inst)$1,muleq); $$=$3; }
@@ -51,7 +53,6 @@ asgn:	  VAR '=' { code(setFlag); /*var*/ } expr { code(setFlag); /*val*/ code3(v
 	| VAR MODEQ expr	{ code3(varpush,(Inst)$1,modeq); $$=$3; }
 	;
 stmt:	  expr	{ code(xpop); }
-	| RETURN { defnonly("return"); code(ret); }
 	| RETURN expr
 	        { defnonly("return"); $$=$2; code(ret); }
 	| PRINT prlist	{ $$ = $2; }
@@ -90,13 +91,13 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	| stmtlist '\n'
 	| stmtlist stmt
 	;
-expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
-	| STRING { $$ = code2(strpush, (Inst)$1); }
+expr:	  NUMBER { $$ = code2(objpush, (Inst)$1); }
+	| STRING { $$ = code2(objpush, (Inst)$1); }
 	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
 	| VAR	 { $$ = code2(exprpush, (Inst)$1); }
 	| asgn
-	| VAR begin '(' { code(setFlag); /*val*/ } arglist { code(setFlag); /*var*/ } ')'
-		{ $$ = $2; code3(call,(Inst)$1,(Inst)$5); }
+	| VAR begin '(' arglist ')'
+		{ $$ = $2; code3(call,(Inst)$1,(Inst)$4); }
 	| READ '(' VAR ')' { $$ = code2(varread, (Inst)$3); }
 	| BLTIN '(' expr ')' { $$=$3; code2(bltin, (Inst)$1->u.ptr); }
 	| '(' expr ')'	{ $$ = $2; }
@@ -118,15 +119,13 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
 valuelist:	/* nothing */	{ $$ = 0; }	
-	| NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
-	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; }
+	| NUMBER { code2(objpush, (Inst)$1); $$ = 1; }
+	| valuelist ',' NUMBER { code2(objpush, (Inst)$3); $$ = $1 + 1; }
 prlist:	  expr			{ code(prexpr); }
 	| prlist ',' expr	{ code(prexpr); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
-	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
-	| PROC VAR { $2->type=VAR; defineBegin($2); }
-	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
+	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }
 	;
 arglist:  /* nothing */ 	{ $$ = 0; }
 	| expr			{ $$ = 1; }
@@ -183,7 +182,15 @@ int yylex(void)		/* hoc6 */
 		double d;
 		ungetc(c, fin);
 		fscanf(fin, "%lf", &d);
-		yylval.sym = install(globalSymbolList, "", NUMBER, d);
+		yylval.sym = install(globalSymbolList, "", NUMBER);
+
+		Object *newObj = (Object *)emalloc(sizeof(Object));
+		newObj->type = NUMBER;
+		newObj->size = 1;
+		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
+		*(newObj->u.valuelist) = d;
+		yylval.obj = newObj;
+
 		return NUMBER;
 	}
 	if (isalpha(c) || c == '_') {
@@ -208,14 +215,14 @@ int yylex(void)		/* hoc6 */
 		if (curDefiningFunction != 0) {
 			Symbol *symlist = curDefiningFunction->paras;
 			if ((s=lookup(symlist, sbuf)) == 0) {
-				s = install(symlist, sbuf, UNDEF, 0.0);
+				s = install(symlist, sbuf, UNDEF);
 				curDefiningFunction->paras = s;
 			}
 			yylval.sym = s;
 			return s->type == UNDEF ? VAR : s->type;
 		} else {
 			if ((s=lookup(globalSymbolList, sbuf)) == 0) {
-				s = install(globalSymbolList, sbuf, UNDEF, 0.0);
+				s = install(globalSymbolList, sbuf, UNDEF);
 				globalSymbolList = s;
 			}
 			yylval.sym = s;
@@ -235,16 +242,14 @@ int yylex(void)		/* hoc6 */
 			*p = backslash(c);
 		}
 		*p = 0;
-		Symbol *s = install(globalSymbolList, "", STRING, 0.0);
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = STRING;
 		newObj->size = strlen(sbuf);
 		newObj->u.str = (char *)emalloc(strlen(sbuf) * sizeof(char));
 		strcpy(newObj->u.str, sbuf);
-		s->u.objPtr = newObj;
 
-		yylval.sym = s;
+		yylval.obj = newObj;
 		return STRING;
 	}
 	switch (c) {

@@ -1,7 +1,10 @@
-func double(a){
-	if(a > 1){
+func double(a) {
+	global double
+
+	if(a > 1) {
 		double(a/2)
 	}
-	print(a)
+	print a, " "
+	return 0
 }
 double(1024)
