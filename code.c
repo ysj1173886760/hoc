@@ -507,7 +507,7 @@ void add(void)
 		d.u.sym = (Symbol *)emalloc(sizeof(Symbol));
 		d.u.sym->type = (long int)emalloc(sizeof(long int));
 		d.u.sym->type = UNDEF;
-		push(d);
+		// push(d);
 		execerror("View variable types", "");
 	}
 
@@ -672,7 +672,7 @@ void assign(void)
 	Datum d1, d2;
 	d1 = pop();
 	d2 = pop();
-	printf("d1.flag: %d\td2.flag: %d\n", d1.setflag, d2.setflag);
+	// printf("d1.flag: %d\td2.flag: %d\n", d1.setflag, d2.setflag);
 	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
 		execerror("assignment to non-variable", d1.u.sym->name);
 	if (d1.u.sym->u.objPtr)
@@ -736,51 +736,6 @@ void assign(void)
 		d1.u.sym->u.objPtr = newObj;
 		d1.u.sym->type = VAR;
 	}
-	// // case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
-	// if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
-	// {
-	// 	Object *newObj = (Object *)emalloc(sizeof(Object));
-	// 	// newObj->type = d2.u.obj->type;
-	// 	// newObj->size = d2.u.obj->size;
-	// 	if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
-	// 	{
-	// 		newObj->type = NUMBER;
-	// 		newObj->size = 1;
-	// 		newObj->u.valuelist = (double *)emalloc(sizeof(double));
-	// 		d1.u.sym->u.objPtr = newObj;
-	// 		double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
-	// 		*(d1.u.sym->u.objPtr->u.valuelist) = val;
-	// 	}
-	// 	else if (d2.u.obj->type == LIST)
-	// 	{
-	// 		int size = d2.u.obj->size;
-	// 		newObj->type = LIST;
-	// 		newObj->size = size;
-	// 		newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
-	// 		for (int i = 0; i < size; ++i)
-	// 			newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
-	// 		d1.u.sym->u.objPtr = newObj;
-	// 	}
-	// 	else if (d2.u.obj->type == STRING)
-	// 	{
-	// 		int size = d2.u.obj->size;
-	// 		newObj->type = STRING;
-	// 		newObj->size = size;
-	// 		// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
-	// 		newObj->u.str = (char *)emalloc(size * sizeof(char));
-	// 		// newObj->u.str = d2.u.obj->u.str;
-	// 		strcpy(newObj->u.str, d2.u.obj->u.str);
-	// 		d1.u.sym->u.objPtr = newObj;
-			
-	// 		// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
-	// 	}
-	// 	d1.u.sym->type = VAR;
-	// }
-	// // case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
-	// else if (d2.u.sym->u.objPtr->type == LIST)
-	// 	d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
-	// else if (d2.u.sym->u.objPtr->type == STRING)
-	// 	d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
 	push(d2);
 }
 
@@ -863,18 +818,39 @@ void printtop(void) /* pop top value from stack, print it */
 	// what's the diff between prittop and prexpr
 	Datum d;
 	d = pop();
-	if (d.u.obj->type == NUMBER)
-		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
-	// here may have some problems
-	if (d.u.obj->type == LIST)
+
+	// d is obj
+	if (d.setflag == 0)
 	{
-		int size = d.u.obj->size;
-		printf("list member : ");
-		for (int i = 0; i < size; ++i)
-			printf("%lf ", d.u.obj->u.valuelist[i]);
+		if (d.u.obj->type == NUMBER) 
+			printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+		// here may have some problems
+		else if (d.u.obj->type == LIST)
+		{
+			int size = d.u.obj->size;
+			printf("list member : ");
+			for (int i = 0; i < size; ++i)
+				printf("%lf ", d.u.obj->u.valuelist[i]);
+		}
+		else if (d.u.obj->type == STRING) 
+			printf("\"%s\"\n", d.u.obj->u.str);
 	}
-	if (d.u.obj->type == STRING) {
-		printf("\"%s\"\n", d.u.obj->u.str);
+	// d is sym
+	else 
+	{
+		if (d.u.sym->type == UNDEF)
+			verify(d.u.sym);
+		else if (d.u.sym->u.objPtr->type == NUMBER)
+			printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.sym->u.objPtr->u.valuelist);
+		else if (d.u.sym->u.objPtr->type == LIST)
+		{
+			int size = d.u.obj->size;
+			printf("list member : ");
+			for (int i = 0; i < size; ++i)
+				printf("%lf ", d.u.sym->u.objPtr->u.valuelist[i]);
+		}
+		else if (d.u.sym->u.objPtr->type == STRING)
+			printf("\"%s\"\n", d.u.sym->u.objPtr->u.str);
 	}
 }
 

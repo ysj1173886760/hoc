@@ -120,8 +120,8 @@ expr:	  NUMBER { $$ = code2(constpush, (Inst)$1); }
 valuelist:	/* nothing */	{ $$ = 0; }	
 	| NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
 	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; }
-prlist:	  expr			{ code(prexpr); }
-	| prlist ',' expr	{ code(prexpr); }
+prlist:	  expr			{ code(printtop); }	/* printtop and prexpr seem to be same */
+	| prlist ',' expr	{ code(printtop); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
 	    '(' vflist ')' { setArg($5); } stmt { code(ret); defineEnd($2); curDefiningFunction = 0; }
