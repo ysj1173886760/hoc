@@ -262,9 +262,10 @@ void valpush(void)
 	Datum d;
 	Symbol *sp = (Symbol *)(*pc++);
 	Symbol *var = parseVar(sp);
+	verify(var);
 
-	if (!var->u.objPtr)
-		execerror("valpush error: ", var->name);
+	// if (!var->u.objPtr)
+	// 	execerror("valpush error: ", var->name);
 	double val = *(var->u.objPtr->u.valuelist);
 	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
@@ -660,7 +661,18 @@ void power(void)
 	// push(d1);
 }
 
-// TODO: a = a, fix it 
+void freeobj(Datum d)
+{
+	if (d.u.sym->u.objPtr)
+	{
+		if (d.u.sym->u.objPtr->type == NUMBER || d.u.sym->u.objPtr->type == LIST)
+			free(d.u.sym->u.objPtr->u.valuelist);
+		else if (d.u.sym->u.objPtr->type == STRING)
+			free(d.u.sym->u.objPtr->u.str);
+		free(d.u.sym->u.objPtr);
+	}
+}
+
 void assign(void)
 {
 	Datum d1, d2;
@@ -670,15 +682,7 @@ void assign(void)
 	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
 		execerror("assignment to non-variable", d1.u.sym->name);
 
-	if (d1.u.sym->u.objPtr)
-	{
-		if (d1.u.sym->u.objPtr->type == NUMBER)
-			free(d1.u.sym->u.objPtr->u.valuelist);
-		else if (d1.u.sym->u.objPtr->type == STRING)
-			free(d1.u.sym->u.objPtr->u.str);
-		free(d1.u.sym->u.objPtr);
-	}
-
+	// if we free obj here, will have problem, like a = a.
 	// d2 is obj
 	if (d2.setflag == 0)
 	{
@@ -701,6 +705,7 @@ void assign(void)
 			newObj->u.str = (char *)emalloc((newObj->size+1) * sizeof(char));
 			strcpy(newObj->u.str, d2.u.obj->u.str);
 		}
+		freeobj(d1);
 		d1.u.sym->u.objPtr = newObj;
 		d1.u.sym->type = VAR;
 	} 
@@ -708,7 +713,7 @@ void assign(void)
 	else 
 	{
 		if (d2.u.sym->type == UNDEF)
-			execerror("assign error", d2.u.sym->name);
+			execerror("assign error, undefined variable", d2.u.sym->name);
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = d2.u.sym->u.objPtr->type;
 		newObj->size = d2.u.sym->u.objPtr->size;
@@ -728,6 +733,7 @@ void assign(void)
 			newObj->u.str = (char *)emalloc((newObj->size+1) * sizeof(char));
 			strcpy(newObj->u.str, d2.u.sym->u.objPtr->u.str);
 		}
+		freeobj(d1);
 		d1.u.sym->u.objPtr = newObj;
 		d1.u.sym->type = VAR;
 	}
