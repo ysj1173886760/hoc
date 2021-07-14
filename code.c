@@ -125,11 +125,10 @@ double *valpop(void)
 		return d.u.obj->u.valuelist;
 	// d contains sym
 	Symbol *sp = parseVar(d.u.sym);
-	// TODO: if use this, there are some problem when use a = a+b
-	// verify(sp);
+	verify(sp);
 
 	// if (!sp->u.objPtr)
-	// 	execerror("error", "");
+		// execerror("error", "");
 	return sp->u.objPtr->u.valuelist;
 }
 
@@ -474,10 +473,13 @@ Object *objpop(void)
 	Datum d = pop();
 	if (d.setflag == 0)
 		return d.u.obj;
-	return d.u.sym->u.objPtr;
+
+	Symbol *sp = parseVar(d.u.sym);
+	verify(sp);
+
+	return sp->u.objPtr;
 }
 
-// TODO: undefined a and b, a = a + b, prog broken
 void add(void)
 {
 	Datum d;
@@ -485,36 +487,27 @@ void add(void)
 	d2 = objpop();
 	d1 = objpop();
 	
-	// bug here 
-	/* 调用 execerror 之后，无法定义变量，即使定义了，也没有值 */
+	// check undefined var.
 	if (!d1 || !d2)
-	{
 		execerror("add error, ", "d1 or d2 is undefined");
-	}
 
 	if (d1->type == NUMBER && d2->type == NUMBER) 
-	{
 		d = double2Datum(*(d1->u.valuelist) + *(d2->u.valuelist));
-	} else if (d1->type == STRING && d2->type == STRING)
+	else if (d1->type == STRING && d2->type == STRING)
 	{
 		char *tmp = (char *)emalloc((strlen(d1->u.str)+strlen(d2->u.str)+1) * sizeof(char));
 		strcpy(tmp, d1->u.str);
 		strcat(tmp, d2->u.str);
 		d = str2Datum(tmp);
-	} else 
+	} 
+	else 
 	{
 		d.setflag = 1;
 		d.u.sym = (Symbol *)emalloc(sizeof(Symbol));
 		d.u.sym->type = (long int)emalloc(sizeof(long int));
 		d.u.sym->type = UNDEF;
-		// push(d);
 		execerror("View variable types", "");
 	}
-
-	// double d1, d2;
-	// d2 = *valpop();
-	// d1 = *valpop();
-	// Datum d = double2Datum(d1 + d2);
 
 	push(d);
 }
@@ -667,6 +660,7 @@ void power(void)
 	// push(d1);
 }
 
+// TODO: a = a, fix it 
 void assign(void)
 {
 	Datum d1, d2;
@@ -675,6 +669,7 @@ void assign(void)
 	// printf("d1.flag: %d\td2.flag: %d\n", d1.setflag, d2.setflag);
 	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
 		execerror("assignment to non-variable", d1.u.sym->name);
+
 	if (d1.u.sym->u.objPtr)
 	{
 		if (d1.u.sym->u.objPtr->type == NUMBER)
@@ -739,82 +734,113 @@ void assign(void)
 	push(d2);
 }
 
+// TODO: check undefined var, += , -=, *=, /=
 void addeq(void)
 {
+	// a += b ==> d2: a, d1: b
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable", d1.u.sym->name);
-	// d2.val = d1.sym->u.val += d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+
+	if (d2.u.sym->type != VAR)
+		// execerror(d2.u.sym->name, "undefined");
+		execerror("addeq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+		*d2.u.sym->u.objPtr->u.valuelist += *d1.u.obj->u.valuelist;
+	else if (d1.u.obj->type == STRING && d2.u.sym->u.objPtr->type == STRING)
+	{
+		char *tmp = (char *)emalloc((strlen(d2.u.sym->u.objPtr->u.str)+strlen(d1.u.obj->u.str)+1) * sizeof(char));
+		strcpy(tmp, d2.u.sym->u.objPtr->u.str);
+		strcat(tmp, d1.u.obj->u.str);
+		free(d2.u.sym->u.objPtr->u.str);
+		d2.u.sym->u.objPtr->u.str = (char *)emalloc(strlen(tmp) * sizeof(char));
+		strcpy(d2.u.sym->u.objPtr->u.str, tmp);
+	}
+	else
+		execerror("addeq: check var type", (char *)0);
+
+	push(d1);
 }
 
 void subeq(void)
 {
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable",
-				  d1.u.sym->name);
-	// d2.val = d1.sym->u.val -= d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("subeq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+		*d2.u.sym->u.objPtr->u.valuelist -= *d1.u.obj->u.valuelist;
+	else 
+		execerror("subeq: check var type", (char *)0);
+	push(d1);
 }
 
 void muleq(void)
 {
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable",
-				  d1.u.sym->name);
-	// d2.val = d1.sym->u.val *= d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("muleq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+		*d2.u.sym->u.objPtr->u.valuelist *= *d1.u.obj->u.valuelist;
+	else 
+		execerror("muleq: check var type", (char *)0);
+	push(d1);
 }
 
 void diveq(void)
 {
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable",
-				  d1.u.sym->name);
-	// d2.val = d1.sym->u.val /= d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("diveq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+	{
+		if (*d1.u.obj->u.valuelist == 0.0)
+			execerror("division by zero", (char *)0);
+		*d2.u.sym->u.objPtr->u.valuelist /= *d1.u.obj->u.valuelist;
+	}
+	else 
+		execerror("diveq: check var type", (char *)0);
+	push(d1);
 }
 
 void modeq(void)
 {
-	// Datum d1, d2;
-	// long x;
-	// d1 = pop();
-	// d2 = pop();
-	// if (d1.sym->type != VAR && d1.sym->type != UNDEF)
-	// 	execerror("assignment to non-variable",
-	// 			  d1.sym->name);
-	// /* d2.val = d1.sym->u.val %= d2.val; */
-	// // x = d1.sym->u.val;
-	// x %= (long)d2.val;
-	// // d2.val = d1.sym->u.val = x;
-	// d1.sym->type = VAR;
-	// push(d2);
+	Datum d1, d2;
+	d2 = pop();
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("modeq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+	{
+		if (*d1.u.obj->u.valuelist == 0.0)
+			execerror("division by zero", (char *)0);
+		
+		long int x = (long int)*d2.u.sym->u.objPtr->u.valuelist;
+		x %= (long int)*d1.u.obj->u.valuelist;
+		// (long)*d2.u.sym->u.objPtr->u.valuelist %= (long)*d1.u.obj->u.valuelist;
+		*d2.u.sym->u.objPtr->u.valuelist = (double)x;
+	}
+	else 
+		execerror("modeq: check var type", (char *)0);
+	push(d1);
 }
 
 void printtop(void) /* pop top value from stack, print it */
 {
-	// static Symbol *s; /* last value computed */
-	// if (s == 0)
-	// 	s = install(globalSymbolList, "_", VAR, 0.0);
-	// double d = *valpop();
-	// printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist), d);
-
 	// what's the diff between prittop and prexpr
 	Datum d;
 	d = pop();
