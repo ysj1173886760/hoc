@@ -113,6 +113,7 @@ static struct memberCallBuiltins {
 	{"list", "append", append, 1},
 	{"list", "change", listchange, 2},
 	{"number", "change", numberchange, 1},
+	{"list", "init", listinit, 2},
 	{0, 0, 0, 0}
 };
 

@@ -147,6 +147,7 @@ extern MemberCallLookupEntry *findMemberCall(char *name, MemberCallLookupEntry *
 // list opr
 extern void append();
 extern void listchange();
+extern void listinit();
 
 // number opr
 extern void numberchange();

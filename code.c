@@ -456,6 +456,27 @@ void oprcall(void)
 	pc = (Inst *)retpc;
 }
 
+void listinit() {
+	// release previous ptr
+	cur_opr_sym->u.objPtr = 0;
+
+	double num = *(objpop()->u.value);
+	int size = *(objpop()->u.value);
+
+	Object *newObject = (Object *) emalloc(sizeof(Object));
+	newObject->type = LIST;
+	newObject->size = size;
+	newObject->u.list = (Object **) emalloc(size * sizeof(Object *));
+
+	for (int i = 0; i < size; i++) {
+		Object *obj = (Object *) emalloc(sizeof(Object));
+		obj->type = NUMBER;
+		*(obj->u.value) = num;
+
+		newObject->u.list[i] = obj;
+	}
+}
+
 void listchange() {
 	Object *obj = objpop();
 	Object *indexObj = objpop();
