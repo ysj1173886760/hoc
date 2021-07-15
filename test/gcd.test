@@ -4,5 +4,6 @@ func gcd(a, b) {
     return gcd(b, a % b)
 }
 
-res = gcd(84,35)
+x = [84, 35]
+res = gcd(x[0],x[1])
 print res
