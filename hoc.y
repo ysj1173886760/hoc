@@ -124,8 +124,8 @@ valuelist:	/* nothing */	{ $$ = 0; }
 	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; } */
 	| NUMBER { code2(objpush, (Inst)$1); $$ = 1; }
 	| valuelist ',' NUMBER { code2(objpush, (Inst)$3); $$ = $1 + 1; }
-prlist:	  expr			{ code(printtop); }	/* printtop and prexpr seem to be same */
-	| prlist ',' expr	{ code(printtop); }
+prlist:	  expr			{ code(prexpr); }	/* printtop and prexpr seem to be same */
+	| prlist ',' expr	{ code(prexpr); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
 	    '(' vflist ')' { setArg($5); } stmt { code(procret); defineEnd($2); curDefiningFunction = 0; }

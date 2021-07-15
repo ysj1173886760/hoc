@@ -893,38 +893,6 @@ void printtop(void) /* pop top value from stack, print it */
 	Datum d;
 	d = pop();
 
-	// // d is obj
-	// if (d.setflag == 0)
-	// {
-	// 	if (d.u.obj->type == NUMBER) 
-	// 		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
-	// 	// here may have some problems
-	// 	else if (d.u.obj->type == LIST)
-	// 	{
-	// 		int size = d.u.obj->size;
-	// 		printf("list member : ");
-	// 		for (int i = 0; i < size; ++i)
-	// 			printf("%lf ", d.u.obj->u.valuelist[i]);
-	// 	}
-	// 	else if (d.u.obj->type == STRING) 
-	// 		printf("\"%s\"\n", d.u.obj->u.str);
-	// }
-	// // d is sym
-	// else 
-	// {
-	// 	if (d.u.sym->type == UNDEF)
-	// 		verify(d.u.sym);
-	// 	else if (d.u.sym->u.objPtr->type == NUMBER)
-	// 		printf("%.*g ", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.sym->u.objPtr->u.valuelist);
-	// 	else if (d.u.sym->u.objPtr->type == LIST)
-	// 	{
-	// 		int size = d.u.obj->size;
-	// 		printf("list member : ");
-	// 		for (int i = 0; i < size; ++i)
-	// 			printf("%lf ", d.u.sym->u.objPtr->u.valuelist[i]);
-	// 	}
-	// 	else if (d.u.sym->u.objPtr->type == STRING)
-	// 		printf("\"%s\"\n", d.u.sym->u.objPtr->u.str);
 	if (d.u.obj->type == NUMBER)
 		printf("%.*g\n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
 	// here may have some problems
@@ -935,9 +903,8 @@ void printtop(void) /* pop top value from stack, print it */
 			printf("%lf ", d.u.obj->u.valuelist[i]);
 		printf("\n");
 	}
-	if (d.u.obj->type == STRING) {
-		printf("%s\n", d.u.obj->u.str);
-	}
+	if (d.u.obj->type == STRING) 
+		printf("\"%s\"\n", d.u.obj->u.str);
 }
 
 void prexpr(void) /* print expr value */
@@ -945,25 +912,18 @@ void prexpr(void) /* print expr value */
 	Datum d;
 	d = pop();
 	if (d.u.obj->type == NUMBER)
-		printf("%.*g", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
+		printf("%.*g\n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
 	// here may have some problems
 	if (d.u.obj->type == LIST)
 	{
 		int size = d.u.obj->size;
 		for (int i = 0; i < size; ++i)
-			printf("%.2lf ", d.u.obj->u.valuelist[i]);
+			printf("%.2lf \n", d.u.obj->u.valuelist[i]);
 	}
 	// print "123", "321" ==> output: "321", "321"
 	// a = "123" and print a ==> output: a
 	if (d.u.obj->type == STRING)
-	{
-		printf("%s", d.u.obj->u.str);
-	}
-}
-
-void prstr(void) /* print string value */
-{
-	printf("%s", (char *)*pc++);
+		printf("\"%s\"\n", d.u.obj->u.str);
 }
 
 void varread(void) /* read into variable */

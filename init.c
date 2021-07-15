@@ -96,7 +96,6 @@ static struct
 	{"modeq", modeq},
 	{"printop", printtop},
 	{"prexpr", prexpr},
-	{"prstr", prstr},
 	{"varread", varread},
 	{0, 0}};
 
