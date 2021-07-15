@@ -112,8 +112,8 @@ void init(void) /* install constants and built-ins in table */
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = NUMBER;
-		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
-		*(newObj->u.valuelist) = consts[i].cval;
+		newObj->u.value = (double *)emalloc(sizeof(Object));
+		*(newObj->u.value) = consts[i].cval;
 		keywordList->u.objPtr = newObj;
 	}
 	for (i = 0; builtins[i].name; i++)
@@ -122,6 +122,7 @@ void init(void) /* install constants and built-ins in table */
 		keywordList = s;
 		s->u.ptr = builtins[i].func;
 	}
+	init_LIST_opr();
 }
 
 char *getCodeThoughAddress(Inst inst)

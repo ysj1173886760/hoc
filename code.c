@@ -59,16 +59,21 @@ int lookup_oprId(Symbol *s)
 	return -1;
 }
 
+Object *objpop() {
+	Datum d = pop();
+	return d.u.obj;
+}
+
 void append(void)
 {
-	double x = *valpop();
-	int i, size = cur_opr_sym->u.objPtr->size + 1;
-	double *tmp = (double *)emalloc(size * sizeof(double));
-	for (i = 0; i < size - 1; ++i)
-		tmp[i] = cur_opr_sym->u.objPtr->u.valuelist[i];
-	tmp[i] = x;
-	free(cur_opr_sym->u.objPtr->u.valuelist);
-	cur_opr_sym->u.objPtr->u.valuelist = tmp;
+	Object *obj = objpop();
+	int size = cur_opr_sym->u.objPtr->size + 1;
+	Object **tmp = (Object **)emalloc(size * sizeof(Object *));
+	for (int i = 0; i < size - 1; ++i)
+		tmp[i] = cur_opr_sym->u.objPtr->u.list[i];
+	tmp[size - 1] = obj;
+	free(cur_opr_sym->u.objPtr->u.list);
+	cur_opr_sym->u.objPtr->u.list = tmp;
 	cur_opr_sym->u.objPtr->size = size;
 }
 
@@ -97,16 +102,11 @@ double *valpop(void)
 	Datum d;
 	d = pop();
 	if (d.setflag == 0)
-		return d.u.obj->u.valuelist;
+		return d.u.obj->u.value;
 	// d contains sym
 	Symbol *sp = parseVar(d.u.sym);
 	verify(sp);
-	return sp->u.objPtr->u.valuelist;
-}
-
-Object *objpop() {
-	Datum d = pop();
-	return d.u.obj;
+	return sp->u.objPtr->u.value;
 }
 
 void debugC(int flag, int level, const char *format, ...)
@@ -199,32 +199,39 @@ void listpush(void)
 {
 	Datum d;
 	long size = (long)*pc++;
-	double *valuelist = (double *)emalloc(size * sizeof(double));
+	Object **valuelist = (Object **)emalloc(size * sizeof(Object *));
 	for (int i = size - 1; i >= 0; --i)
 	{
 		// have some problem : can't support a = [[1,2,3],4,5] case
-		double val = *valpop();
-		valuelist[i] = val;
+		Object *obj = objpop();
+		valuelist[i] = obj;
 	}
 	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = (long)LIST;
 	d.u.obj->size = size;
-	d.u.obj->u.valuelist = valuelist;
+	d.u.obj->u.list = valuelist;
 	push(d);
 }
 
 void memberpush(void)
 {
 	Datum d;
-	Symbol *sp = (Symbol *)*pc++;
-	int id = *(((Symbol *)*pc++)->u.objPtr->u.valuelist);
+	Symbol *name = (Symbol *)*pc++;
+	Symbol *sp = parseVar(name);
+	
+	Object *obj = objpop();
+	if (obj->type != NUMBER)
+		execerror(sp->name, " can not support non-number index");
+	
+	int id = *(obj->u.value);
 	if (sp->u.objPtr->type != LIST)
 		execerror(sp->name, " is not a LIST type");
 	if (id >= sp->u.objPtr->size)
 		execerror(sp->name, " doesn't has enough member");
-	double tmp = sp->u.objPtr->u.valuelist[id];
-	d = double2Datum(tmp);
+
+	d.setflag = 0;
+	d.u.obj = sp->u.objPtr->u.list[id];
 	push(d);
 }
 
@@ -257,7 +264,7 @@ void whilecode(void)
 	if (obj->type != NUMBER) {
 		execerror("expect number when checking condition", "");
 	}
-	double cond = *(obj->u.valuelist);
+	double cond = *(obj->u.value);
 	
 	while (cond)
 	{
@@ -284,7 +291,7 @@ void forcode(void)
 		execerror("expect number when checking condition", "");
 	}
 
-	double cond = *(obj->u.valuelist);
+	double cond = *(obj->u.value);
 
 	while (cond)
 	{
@@ -312,7 +319,7 @@ void ifcode(void)
 		execerror("expect number when checking condition", "");
 	}
 
-	double cond = *(obj->u.valuelist);
+	double cond = *(obj->u.value);
 
 	if (cond)
 		execute(*((Inst **)(savepc)));
@@ -441,8 +448,8 @@ Datum double2Datum(double val)
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = NUMBER;
 	d.u.obj->size = 1;
-	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
-	*(d.u.obj->u.valuelist) = val;
+	d.u.obj->u.value = (double *)emalloc(sizeof(double));
+	*(d.u.obj->u.value) = val;
 	return d;
 }
 
@@ -532,16 +539,25 @@ void negate(void)
 	push(d);
 }
 
+void printObj(Object *obj) {
+	if (obj->type == STRING) {
+		printf("%s", obj->u.str);
+	} else if (obj->type == LIST) {
+		for (int i = 0; i < obj->size; i++) {
+			printObj(obj->u.list[i]);
+			printf(" ");
+		}
+	} else {
+		printf("%.10g", *(obj->u.value));
+	}
+}
+
 void printStack() {
 	printf("printing stack\n");
 	for (Datum *cur = stackp - 1; cur >= stack; cur--) {
 		if (cur->setflag == 0) {
-			printf("obj %p\n", cur->u.obj);
-			if (cur->u.obj->type == STRING) {
-				printf("obj: string\n");
-			} else {
-				printf("obj: %lf\n", *(cur->u.obj->u.valuelist));
-			}
+			printObj(cur->u.obj);
+			printf(" ");
 		} else {
 			printf("sym: %s\n", cur->u.sym->name);
 		}
@@ -781,42 +797,15 @@ void printtop(void) /* pop top value from stack, print it */
 	// printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist), d);
 
 	// what's the diff between prittop and prexpr
-	Datum d;
-	d = pop();
-	if (d.u.obj->type == NUMBER)
-		printf("%.*g\n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
-	// here may have some problems
-	if (d.u.obj->type == LIST)
-	{
-		int size = d.u.obj->size;
-		for (int i = 0; i < size; ++i)
-			printf("%lf ", d.u.obj->u.valuelist[i]);
-		printf("\n");
-	}
-	if (d.u.obj->type == STRING) {
-		printf("%s\n", d.u.obj->u.str);
-	}
+	prexpr();
+	printf("\n");
 }
 
 void prexpr(void) /* print expr value */
 {
 	Datum d;
-	d = pop();
-	if (d.u.obj->type == NUMBER)
-		printf("%.*g", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
-	// here may have some problems
-	if (d.u.obj->type == LIST)
-	{
-		int size = d.u.obj->size;
-		for (int i = 0; i < size; ++i)
-			printf("%.2lf ", d.u.obj->u.valuelist[i]);
-	}
-	// print "123", "321" ==> output: "321", "321"
-	// a = "123" and print a ==> output: a
-	if (d.u.obj->type == STRING)
-	{
-		printf("%s", d.u.obj->u.str);
-	}
+	Object *obj = objpop();
+	printObj(obj);
 }
 
 void prstr(void) /* print string value */

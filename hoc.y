@@ -36,6 +36,7 @@ void yyerror(char* s);
 %left	'*' '/' '%'
 %left	UNARYMINUS NOT
 %right	'^'
+%left 	'[' ']'
 %%
 list:	  /* nothing */
 	| list '\n'
@@ -93,8 +94,8 @@ stmtlist: /* nothing */		{ $$ = progp; }
 	;
 expr:	  NUMBER { $$ = code2(objpush, (Inst)$1); }
 	| STRING { $$ = code2(objpush, (Inst)$1); }
-	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
-	| VAR '[' NUMBER ']' { $$ = code3(memberpush, (Inst)$1, (Inst)$3); }
+	| VAR '[' expr ']' { $$ = code2(memberpush, (Inst)$1); }
+	| '[' arglist ']' { $$ = code2(listpush, (Inst)$2); }
 	| VAR	 { $$ = code2(exprpush, (Inst)$1); }
 	| asgn
 	| VAR begin '(' arglist ')'
@@ -188,8 +189,8 @@ int yylex(void)		/* hoc6 */
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = NUMBER;
 		newObj->size = 1;
-		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
-		*(newObj->u.valuelist) = d;
+		newObj->u.value = (double *)emalloc(sizeof(Object));
+		*(newObj->u.value) = d;
 		yylval.obj = newObj;
 
 		return NUMBER;
@@ -388,7 +389,7 @@ void printProg(Inst *start) {
 				Symbol *sp = lookupThoughAddress(globalSymbolList, (Symbol *)(*cur));
 				if (sp) {
 					if (strcmp(sp->name, "") == 0) {
-						printf("%lf", *(sp->u.objPtr->u.valuelist));
+						printf("%lf", *(sp->u.objPtr->u.value));
 					} else {
 						printf("%s", sp->name);
 					}
@@ -419,7 +420,6 @@ int main(int argc, char* argv[])	/* hoc6 */
 
 	progname = argv[0];
 	init();
-	init_LIST_opr();
 
 	// normal argument list, argc - 1 means we don't count the proc name, argv + 1 means we are starting from the first argument
 	gargv = argv+1;

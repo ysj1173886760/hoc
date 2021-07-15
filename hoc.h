@@ -11,15 +11,18 @@ typedef struct Info
 	Inst *defn; // code指令起始位置
 } Info;
 
+typedef struct Object Object;
+
 typedef struct Object
 {
 	long type;
 	int size;
 	union
 	{
-		double *valuelist;
+		double *value;
 		char *str;
 		Info *funcInfo;
+		Object **list;
 	} u;
 } Object;
 
