@@ -469,7 +469,7 @@ void listchange() {
 
 void numberchange() {
 	Object *obj = objpop();
-	cur_opr_sym->u.objPtr = obj;
+	*(cur_opr_sym->u.objPtr->u.value) = *(obj->u.value);
 }
 
 void ret(void) /* common return from func or proc */

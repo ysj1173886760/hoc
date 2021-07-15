@@ -1,7 +1,7 @@
 func ack(a, b) {
 	global n
 	global ack
-	n = n + 1
+	n.change(n + 1)
 	if(a == 0) return (b + 1)
 	if(b == 0) return (ack(a - 1, 1))
 	return (ack(a - 1, ack(a, b - 1)))

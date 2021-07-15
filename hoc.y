@@ -28,7 +28,7 @@ void yyerror(char* s);
 %token 	<obj>	NUMBER STRING LIST
 %type	<inst>	expr stmt asgn prlist stmtlist
 %type	<inst>	cond while for if begin end
-%type	<narg>	arglist vflist valuelist
+%type	<narg>	arglist vflist
 %right	'=' ADDEQ SUBEQ MULEQ DIVEQ MODEQ
 %left	OR
 %left	AND
@@ -75,7 +75,7 @@ stmt:	  expr	{ code(xpop); }
 		($1)[3] = (Inst)$9; }	/* end, if cond fails */
 	| '{' stmtlist '}'	{ $$ = $2; }
 	| GLOBAL VAR { code2(globalBinding, (Inst)$2); }
-	| VAR '.' VAR '(' valuelist ')' { code3(oprcall, (Inst)$1, (Inst)$3); code((Inst)$5); }	
+	| VAR '.' VAR '(' arglist ')' { code3(oprcall, (Inst)$1, (Inst)$3); code((Inst)$5); }	
 	;
 cond:	   expr 	{ code(STOP); }
 	;
@@ -121,11 +121,6 @@ expr:	  NUMBER { $$ = code2(objpush, (Inst)$1); }
 	| expr OR expr	{ code(or); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
-valuelist:	/* nothing */	{ $$ = 0; }	
-	/* | NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
-	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; } */
-	| NUMBER { code2(objpush, (Inst)$1); $$ = 1; }
-	| valuelist ',' NUMBER { code2(objpush, (Inst)$3); $$ = $1 + 1; }
 prlist:	  expr			{ code(prexpr); }	/* printtop and prexpr seem to be same */
 	| prlist ',' expr	{ code(prexpr); }
 	;
