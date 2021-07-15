@@ -66,8 +66,8 @@ Datum double2Datum(double val)
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = NUMBER;
 	d.u.obj->size = 1;
-	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
-	*(d.u.obj->u.valuelist) = val;
+	d.u.obj->u.value = (double *)emalloc(sizeof(double));
+	*(d.u.obj->u.value) = val;
 	return d;
 }
 
@@ -472,18 +472,6 @@ void numberchange() {
 	cur_opr_sym->u.objPtr = obj;
 }
 
-Datum double2Datum(double val)
-{
-	Datum d;
-	d.setflag = 0;
-	d.u.obj = (Object *)emalloc(sizeof(Object));
-	d.u.obj->type = NUMBER;
-	d.u.obj->size = 1;
-	d.u.obj->u.value = (double *)emalloc(sizeof(double));
-	*(d.u.obj->u.value) = val;
-	return d;
-}
-
 void ret(void) /* common return from func or proc */
 {
 	int i;
@@ -517,7 +505,7 @@ void add(void)
 		execerror("add error, ", "d1 or d2 is undefined");
 
 	if (d1->type == NUMBER && d2->type == NUMBER) 
-		d = double2Datum(*(d1->u.valuelist) + *(d2->u.valuelist));
+		d = double2Datum(*(d1->u.value) + *(d2->u.value));
 	else if (d1->type == STRING && d2->type == STRING)
 	{
 		char *tmp = (char *)emalloc((strlen(d1->u.str)+strlen(d2->u.str)+1) * sizeof(char));
@@ -527,10 +515,6 @@ void add(void)
 	} 
 	else 
 	{
-		d.setflag = 1;
-		d.u.sym = (Symbol *)emalloc(sizeof(Symbol));
-		d.u.sym->type = (long int)emalloc(sizeof(long int));
-		d.u.sym->type = UNDEF;
 		execerror("View variable types", "");
 	}
 
@@ -800,7 +784,7 @@ void addeq(void)
 		execerror("addeq: assignment to non-variable", d2.u.sym->name);
 
 	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
-		*d2.u.sym->u.objPtr->u.valuelist += *d1.u.obj->u.valuelist;
+		*(d2.u.sym->u.objPtr->u.value) += *(d1.u.obj->u.value);
 	else if (d1.u.obj->type == STRING && d2.u.sym->u.objPtr->type == STRING)
 	{
 		char *tmp = (char *)emalloc((strlen(d2.u.sym->u.objPtr->u.str)+strlen(d1.u.obj->u.str)+1) * sizeof(char));
@@ -826,7 +810,7 @@ void subeq(void)
 		execerror("subeq: assignment to non-variable", d2.u.sym->name);
 
 	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
-		*d2.u.sym->u.objPtr->u.valuelist -= *d1.u.obj->u.valuelist;
+		*(d2.u.sym->u.objPtr->u.value) -= *(d1.u.obj->u.value);
 	else 
 		execerror("subeq: check var type", (char *)0);
 	push(d1);
@@ -842,7 +826,7 @@ void muleq(void)
 		execerror("muleq: assignment to non-variable", d2.u.sym->name);
 
 	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
-		*d2.u.sym->u.objPtr->u.valuelist *= *d1.u.obj->u.valuelist;
+		*(d2.u.sym->u.objPtr->u.value) *= *(d1.u.obj->u.value);
 	else 
 		execerror("muleq: check var type", (char *)0);
 	push(d1);
@@ -859,9 +843,9 @@ void diveq(void)
 
 	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
 	{
-		if (*d1.u.obj->u.valuelist == 0.0)
+		if (*(d1.u.obj->u.value) == 0.0)
 			execerror("division by zero", (char *)0);
-		*d2.u.sym->u.objPtr->u.valuelist /= *d1.u.obj->u.valuelist;
+		*(d2.u.sym->u.objPtr->u.value) /= *(d1.u.obj->u.value);
 	}
 	else 
 		execerror("diveq: check var type", (char *)0);
@@ -879,13 +863,13 @@ void modeq(void)
 
 	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
 	{
-		if (*d1.u.obj->u.valuelist == 0.0)
+		if (*(d1.u.obj->u.value) == 0.0)
 			execerror("division by zero", (char *)0);
 		
-		long int x = (long int)*d2.u.sym->u.objPtr->u.valuelist;
-		x %= (long int)*d1.u.obj->u.valuelist;
+		long int x = (long int)*(d2.u.sym->u.objPtr->u.value);
+		x %= (long int)*(d1.u.obj->u.value);
 		// (long)*d2.u.sym->u.objPtr->u.valuelist %= (long)*d1.u.obj->u.valuelist;
-		*d2.u.sym->u.objPtr->u.valuelist = (double)x;
+		*(d2.u.sym->u.objPtr->u.value) = (double)x;
 	}
 	else 
 		execerror("modeq: check var type", (char *)0);
