@@ -94,6 +94,7 @@ stmtlist: /* nothing */		{ $$ = progp; }
 expr:	  NUMBER { $$ = code2(objpush, (Inst)$1); }
 	| STRING { $$ = code2(objpush, (Inst)$1); }
 	| '[' valuelist ']' { $$ = code2(listpush, (Inst)$2); }
+	| VAR '[' NUMBER ']' { $$ = code3(memberpush, (Inst)$1, (Inst)$3); }
 	| VAR	 { $$ = code2(exprpush, (Inst)$1); }
 	| asgn
 	| VAR begin '(' arglist ')'

@@ -38,7 +38,7 @@ typedef struct Opr
 	char *name; //操作的名称 例:append
 	int nargs;	//传入的参数数目 例:1
 	// problem : 不定参数有没有参数个数为0的写法？cur stage : one arg
-	void (*func)(double n);
+	void (*func)(void);
 } Opr;
 
 #define NOPR 10
@@ -46,7 +46,7 @@ int list_noprs = 0;
 Opr ListOpr[NOPR];
 
 Symbol *cur_opr_sym; //当前操作(A.opr)的对象(A)
-typedef void (*FunType)(double);
+typedef void (*FunType)(void);
 
 int lookup_oprId(Symbol *s)
 {
@@ -59,10 +59,10 @@ int lookup_oprId(Symbol *s)
 	return -1;
 }
 
-void append(double x)
+void append(void)
 {
-	int i;
-	int size = cur_opr_sym->u.objPtr->size + 1;
+	double x = *valpop();
+	int i, size = cur_opr_sym->u.objPtr->size + 1;
 	double *tmp = (double *)emalloc(size * sizeof(double));
 	for (i = 0; i < size - 1; ++i)
 		tmp[i] = cur_opr_sym->u.objPtr->u.valuelist[i];
@@ -211,6 +211,20 @@ void listpush(void)
 	d.u.obj->type = (long)LIST;
 	d.u.obj->size = size;
 	d.u.obj->u.valuelist = valuelist;
+	push(d);
+}
+
+void memberpush(void)
+{
+	Datum d;
+	Symbol *sp = (Symbol *)*pc++;
+	int id = *(((Symbol *)*pc++)->u.objPtr->u.valuelist);
+	if (sp->u.objPtr->type != LIST)
+		execerror(sp->name, " is not a LIST type");
+	if (id >= sp->u.objPtr->size)
+		execerror(sp->name, " doesn't has enough member");
+	double tmp = sp->u.objPtr->u.valuelist[id];
+	d = double2Datum(tmp);
 	push(d);
 }
 
@@ -416,8 +430,7 @@ void oprcall(void)
 		execerror(s_opr->name, "nargs match error");
 	Inst *retpc = pc + 3;
 	// cur stage, we only have one opr, so ListOpr[0], in future add map<string, int>
-	double x = *valpop();
-	(*ListOpr[opr_id].func)(x);
+	(*ListOpr[opr_id].func)();
 	pc = (Inst *)retpc;
 }
 
