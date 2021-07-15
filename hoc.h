@@ -114,3 +114,4 @@ extern void exprpush(void);
 extern void test(void);
 extern void setFlag(void);
 extern void printStack();
+extern void init_LIST_opr();

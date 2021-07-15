@@ -425,7 +425,7 @@ void oprcall(void)
 	int opr_id = lookup_oprId(s_opr);
 	if (opr_id == -1)
 		execerror(s_opr->name, " not correct opr");
-	int nargs = (int)pc[2];
+	long nargs = (long)pc[2];
 	if (nargs != ListOpr[opr_id].nargs)
 		execerror(s_opr->name, "nargs match error");
 	Inst *retpc = pc + 3;
