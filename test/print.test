@@ -3,4 +3,5 @@ b = a
 c = a[1]
 print c
 a.append(5)
-print b[4]
+print b
+print a

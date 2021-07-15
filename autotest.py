@@ -7,14 +7,11 @@ class Tester:
     testFileDirectory = "./test"
 
     testList = [
-        "field", 
         "for", 
         "gcd",
-        "read",
         "test1",
         "test2",
         "test3",
-        "test4",
     ]
 
     procname = "./hoc"

@@ -1,6 +1,0 @@
-proc test() {
-    a = 10
-}
-
-test()
-print "a is ", a

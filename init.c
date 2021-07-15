@@ -8,28 +8,16 @@ static struct
 	char *name;
 	int kval;
 } keywords[] = {
-	"proc",
-	PROC,
-	"func",
-	FUNC,
-	"return",
-	RETURN,
-	"if",
-	IF,
-	"else",
-	ELSE,
-	"while",
-	WHILE,
-	"for",
-	FOR,
-	"print",
-	PRINT,
-	"read",
-	READ,
-	"global",
-	GLOBAL,
-	0,
-	0,
+	"func",		FUNC,
+	"return",	RETURN,
+	"if",		IF,
+	"else",		ELSE,
+	"while",	WHILE,
+	"for",		FOR,
+	"print",	PRINT,
+	"read",		READ,
+	"global",	GLOBAL,
+	0,			0,
 };
 
 static struct
@@ -77,7 +65,7 @@ static struct
 } codeLookupTable[] = {
 	{"call", call},
 	{"xpop", xpop},
-	{"constpush", constpush},
+	{"objpush", objpush},
 	{"varpush", varpush},
 	{"whilecode", whilecode},
 	{"forcode", forcode},
@@ -117,10 +105,10 @@ void init(void) /* install constants and built-ins in table */
 	int i;
 	Symbol *s;
 	for (i = 0; keywords[i].name; i++)
-		keywordList = install(keywordList, keywords[i].name, keywords[i].kval, 0.0);
+		keywordList = install(keywordList, keywords[i].name, keywords[i].kval);
 	for (i = 0; consts[i].name; i++)
 	{
-		keywordList = install(keywordList, consts[i].name, VAR, 0.0);
+		keywordList = install(keywordList, consts[i].name, VAR);
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = NUMBER;
@@ -130,7 +118,7 @@ void init(void) /* install constants and built-ins in table */
 	}
 	for (i = 0; builtins[i].name; i++)
 	{
-		s = install(keywordList, builtins[i].name, BLTIN, 0.0);
+		s = install(keywordList, builtins[i].name, BLTIN);
 		keywordList = s;
 		s->u.ptr = builtins[i].func;
 	}

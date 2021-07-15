@@ -13,7 +13,7 @@ Symbol *lookup(Symbol *symList, char *s) /* find s in symbol table */
 	return 0; /* 0 ==> not found */
 }
 
-Symbol *install(Symbol *symList, char *s, int t, double d) /* install s in symbol table */
+Symbol *install(Symbol *symList, char *s, int t) /* install s in symbol table */
 {
 	Symbol *sp;
 
@@ -21,21 +21,7 @@ Symbol *install(Symbol *symList, char *s, int t, double d) /* install s in symbo
 	sp->name = emalloc(strlen(s) + 1); /* +1 for '\0' */
 	strcpy(sp->name, s);
 	sp->type = t;
-
-	// only create number object when we are installing number
-	if (t == NUMBER)
-	{
-		Object *newObj = (Object *)emalloc(sizeof(Object));
-		newObj->type = NUMBER;
-		newObj->size = 1;
-		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
-		*(newObj->u.valuelist) = d;
-		sp->u.objPtr = newObj;
-	}
-	else
-	{
-		sp->u.objPtr = 0;
-	}
+	sp->u.objPtr = 0;
 
 	sp->next = symList; /* put at front of list */
 	return sp;

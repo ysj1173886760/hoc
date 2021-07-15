@@ -18,6 +18,7 @@ typedef struct Object
 	union
 	{
 		double *valuelist;
+		char *str;
 		Info *funcInfo;
 	} u;
 } Object;
@@ -30,12 +31,12 @@ typedef struct Symbol
 	{
 		Object *objPtr;		   /* VAR */
 		double (*ptr)(double); /* BLTIN */
-		char *str;			   /* STRING */
+		// char *str;			   /* STRING */
 	} u;
 	struct Symbol *next; /* to link to another */
 } Symbol;
 
-Symbol *install(Symbol *, char *, int, double);
+Symbol *install(Symbol *, char *, int);
 Symbol *lookup(Symbol *, char *);
 
 typedef struct Datum
@@ -68,10 +69,9 @@ extern void execerror(char *, char *);
 extern void defineBegin(Symbol *), verify(Symbol *);
 extern void defineEnd(Symbol *);
 extern Datum pop(void);
-extern void initcode(void), push(Datum), xpop(void);
-extern void constpush(void), listpush(void), memberpush(void);
+extern void initcode(void), push(Datum), xpop(void), objpush(void), listpush(void), memberpush(void);
 
-extern void varpush(void);
+extern void strpush(void), varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
 extern void negate(void), power(void);
 extern void addeq(void), subeq(void), muleq(void), diveq(void), modeq(void);
@@ -85,7 +85,7 @@ extern void gt(void), lt(void), eq(void), ge(void), le(void), ne(void);
 extern void and (void), or (void), not(void);
 extern void ifcode(void), whilecode(void), forcode(void);
 extern void call(void), oprcall(void);
-// extern void funcret(void), procret(void);
+extern void procret(void);
 // extern void preinc(void), predec(void), postinc(void), postdec(void);
 extern void execute(Inst *);
 extern void printtop(void);
@@ -104,6 +104,7 @@ extern void defnonly(char *);
 extern void warning(char *s, char *t);
 
 extern Datum double2Datum(double);
+extern Datum str2Datum(char *);
 extern double *valpop(void);
 extern Symbol *parseVar(Symbol *);
 extern void ret(void);
@@ -112,3 +113,4 @@ extern void exprpush(void);
 
 extern void test(void);
 extern void setFlag(void);
+extern void printStack();
