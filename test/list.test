@@ -3,5 +3,6 @@ b = a
 print a, "\n"
 a.append(1)
 print b, "\n"
-print a[0], a[1], a[2], a[3]
-a = 1
+a.change(1, 5)
+print a, "\n"
+print b, "\n"
