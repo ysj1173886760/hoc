@@ -97,9 +97,6 @@ extern void defineEnd(Symbol *);
 extern Datum pop(void);
 extern void initcode(void), push(Datum), xpop(void), objpush(void), listpush(void), memberpush(void);
 
-// list opr
-extern void append();
-
 extern void strpush(void), varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
 extern void negate(void), power(void);
@@ -147,5 +144,9 @@ extern void printStack();
 extern TypeLookupEntry *findTypeTable(char *name);
 extern MemberCallLookupEntry *findMemberCall(char *name, MemberCallLookupEntry *table);
 
+// list opr
+extern void append();
 extern void listchange();
+
+// number opr
 extern void numberchange();

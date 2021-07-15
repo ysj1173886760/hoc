@@ -150,9 +150,9 @@ void init(void) /* install constants and built-ins in table */
 		}
 
 		MemberCallLookupEntry *newEntry = (MemberCallLookupEntry *) emalloc(sizeof(MemberCallLookupEntry));
-		newEntry->name = memberCallTables->callName;
+		newEntry->name = memberCallTables[i].callName;
 		newEntry->opr.func = memberCallTables[i].func;
-		newEntry->opr.nargs = memberCallTables->nargs;
+		newEntry->opr.nargs = memberCallTables[i].nargs;
 
 		newEntry->next = cur->memberTable;
 		cur->memberTable = newEntry;
