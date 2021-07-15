@@ -241,18 +241,6 @@ void exprpush(void)
 	Symbol *var = parseVar(sp);
 	verify(var);
 
-	// // if (!var->u.objPtr)
-	// // 	execerror("valpush error: ", var->name);
-	// double val = *(var->u.objPtr->u.valuelist);
-	// d.setflag = 0;
-	// d.u.obj = (Object *)emalloc(sizeof(Object));
-	// d.u.obj->type = var->u.objPtr->type;
-	// d.u.obj->size = var->u.objPtr->size;
-	// d.u.obj->u.valuelist = (double *)emalloc(d.u.obj->size * sizeof(double));
-	// // for (int i = 0; i < d.u.obj->size; ++i)
-	// // 	d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
-	// d.u.obj->u.valuelist = var->u.objPtr->u.valuelist;
-
 	d.u.obj = var->u.objPtr;
 	d.setflag = 0;
 	push(d);
@@ -457,23 +445,21 @@ void oprcall(void)
 }
 
 void listinit() {
-	// release previous ptr
-	cur_opr_sym->u.objPtr = 0;
-
 	double num = *(objpop()->u.value);
 	int size = *(objpop()->u.value);
 
-	Object *newObject = (Object *) emalloc(sizeof(Object));
-	newObject->type = LIST;
-	newObject->size = size;
-	newObject->u.list = (Object **) emalloc(size * sizeof(Object *));
+	Object *obj = cur_opr_sym->u.objPtr;
+	// should free the previous obj
+	obj->size = size;
+	obj->u.list = (Object **) emalloc(size * sizeof(Object *));
 
 	for (int i = 0; i < size; i++) {
-		Object *obj = (Object *) emalloc(sizeof(Object));
-		obj->type = NUMBER;
-		*(obj->u.value) = num;
+		Object *val = (Object *) emalloc(sizeof(Object));
+		val->u.value = (double *) emalloc(sizeof(double));
+		val->type = NUMBER;
+		*(val->u.value) = num;
 
-		newObject->u.list[i] = obj;
+		obj->u.list[i] = val;
 	}
 }
 
@@ -514,12 +500,22 @@ void bltin(void)
 	push(d);
 }
 
+Object *objPopWithParse() {
+	Datum d = pop();
+	if (d.setflag) {
+		Symbol *sp = parseVar(d.u.sym);
+		return sp->u.objPtr;
+	} else {
+		return d.u.obj;
+	}
+}
+
 void add(void)
 {
 	Datum d;
 	Object *d1, *d2;
-	d2 = objpop();
-	d1 = objpop();
+	d2 = objPopWithParse();
+	d1 = objPopWithParse();
 	
 	// check undefined var.
 	if (!d1 || !d2)
@@ -688,19 +684,16 @@ void and (void)
 
 void or (void)
 {
-	// Datum d1, d2;
-	// d2 = pop();
-	// d1 = pop();
-	// d1.val = (double)(d1.val != 0.0 || d2.val != 0.0);
-	// push(d1);
+	double d1 = *valpop();
+	double d2 = *valpop();
+	push(double2Datum((double)(d1 != 0 || d2 != 0)));
 }
 
 void not(void)
 {
-	// Datum d;
-	// d = pop();
-	// d.val = (double)(d.val == 0.0);
-	// push(d);
+	double d = *valpop();
+	d = (d == 0.0);
+	push(double2Datum(d));
 }
 
 void power(void)
