@@ -122,9 +122,11 @@ expr:	  NUMBER { $$ = code2(objpush, (Inst)$1); }
 	| NOT expr	{ $$ = $2; code(not); }
 	;
 valuelist:	/* nothing */	{ $$ = 0; }	
+	/* | NUMBER { code2(constpush, (Inst)$1); $$ = 1; }
+	| valuelist ',' NUMBER { code2(constpush, (Inst)$3); $$ = $1 + 1; } */
 	| NUMBER { code2(objpush, (Inst)$1); $$ = 1; }
 	| valuelist ',' NUMBER { code2(objpush, (Inst)$3); $$ = $1 + 1; }
-prlist:	  expr			{ code(prexpr); }
+prlist:	  expr			{ code(prexpr); }	/* printtop and prexpr seem to be same */
 	| prlist ',' expr	{ code(prexpr); }
 	;
 defn:	  FUNC VAR { $2->type=VAR; defineBegin($2); }
@@ -249,7 +251,7 @@ int yylex(void)		/* hoc6 */
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = STRING;
 		newObj->size = strlen(sbuf);
-		newObj->u.str = (char *)emalloc(strlen(sbuf) * sizeof(char));
+		newObj->u.str = (char *)emalloc((strlen(sbuf)+1) * sizeof(char));
 		strcpy(newObj->u.str, sbuf);
 
 		yylval.obj = newObj;

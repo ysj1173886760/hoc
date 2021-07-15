@@ -59,6 +59,31 @@ void test(void)
 	printf("test\n");
 }
 
+Datum double2Datum(double val)
+{
+	Datum d;
+	d.setflag = 0;
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = NUMBER;
+	d.u.obj->size = 1;
+	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
+	*(d.u.obj->u.valuelist) = val;
+	return d;
+}
+
+Datum str2Datum(char *str)
+{
+	Datum d;
+	d.setflag = 0;
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = STRING;
+	d.u.obj->size = strlen(str);
+	d.u.obj->u.str = (char *)emalloc((strlen(str)+1) * sizeof(char));
+	strcpy(d.u.obj->u.str, str);
+
+	return d;
+}
+
 // problem : double->double *
 double *valpop(void)
 {
@@ -69,6 +94,7 @@ double *valpop(void)
 	// d contains sym
 	Symbol *sp = parseVar(d.u.sym);
 	verify(sp);
+
 	return sp->u.objPtr->u.value;
 }
 
@@ -213,6 +239,20 @@ void exprpush(void)
 	Datum d;
 	Symbol *sp = (Symbol *)(*pc++);
 	Symbol *var = parseVar(sp);
+	verify(var);
+
+	// // if (!var->u.objPtr)
+	// // 	execerror("valpush error: ", var->name);
+	// double val = *(var->u.objPtr->u.valuelist);
+	// d.setflag = 0;
+	// d.u.obj = (Object *)emalloc(sizeof(Object));
+	// d.u.obj->type = var->u.objPtr->type;
+	// d.u.obj->size = var->u.objPtr->size;
+	// d.u.obj->u.valuelist = (double *)emalloc(d.u.obj->size * sizeof(double));
+	// // for (int i = 0; i < d.u.obj->size; ++i)
+	// // 	d.u.obj->u.valuelist[i] = var->u.objPtr->u.valuelist[i];
+	// d.u.obj->u.valuelist = var->u.objPtr->u.valuelist;
+
 	d.u.obj = var->u.objPtr;
 	d.setflag = 0;
 	push(d);
@@ -467,16 +507,33 @@ void bltin(void)
 
 void add(void)
 {
-	// Datum d1, d2;
-	// d2 = pop();
-	// d1 = pop();
-	// d1.val += d2.val;
-	// push(d1);
+	Datum d;
+	Object *d1, *d2;
+	d2 = objpop();
+	d1 = objpop();
+	
+	// check undefined var.
+	if (!d1 || !d2)
+		execerror("add error, ", "d1 or d2 is undefined");
 
-	double d1, d2;
-	d2 = *valpop();
-	d1 = *valpop();
-	Datum d = double2Datum(d1 + d2);
+	if (d1->type == NUMBER && d2->type == NUMBER) 
+		d = double2Datum(*(d1->u.valuelist) + *(d2->u.valuelist));
+	else if (d1->type == STRING && d2->type == STRING)
+	{
+		char *tmp = (char *)emalloc((strlen(d1->u.str)+strlen(d2->u.str)+1) * sizeof(char));
+		strcpy(tmp, d1->u.str);
+		strcat(tmp, d2->u.str);
+		d = str2Datum(tmp);
+	} 
+	else 
+	{
+		d.setflag = 1;
+		d.u.sym = (Symbol *)emalloc(sizeof(Symbol));
+		d.u.sym->type = (long int)emalloc(sizeof(long int));
+		d.u.sym->type = UNDEF;
+		execerror("View variable types", "");
+	}
+
 	push(d);
 }
 
@@ -650,143 +707,193 @@ void power(void)
 	// push(d1);
 }
 
+// void freeobj(Datum d)
+// {
+// 	if (d.u.sym->u.objPtr)
+// 	{
+// 		if (d.u.sym->u.objPtr->type == NUMBER || d.u.sym->u.objPtr->type == LIST)
+// 			free(d.u.sym->u.objPtr->u.valuelist);
+// 		else if (d.u.sym->u.objPtr->type == STRING)
+// 			free(d.u.sym->u.objPtr->u.str);
+// 		free(d.u.sym->u.objPtr);
+// 	}
+// }
+
 void assign(void)
 {
 	Datum d1, d2;
 	d1 = pop();
 	d2 = pop();
+
 	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
 		execerror("assignment to non-variable", d1.u.sym->name);
-	d1.u.sym->u.objPtr = d2.u.obj;
-	d1.u.sym->type = VAR;
-	// if (d1.u.sym->u.objPtr)
-	// {
-	// 	if (d1.u.sym->u.objPtr->type == NUMBER)
-	// 		free(d1.u.sym->u.objPtr->u.valuelist);
-	// 	free(d1.u.sym->u.objPtr);
-	// }
-	// // case 1 : d1 = d2, d2 is unchangeable, d2 can be a unname tmp(just a obj) or NUMBER sym
-	// if (d2.setflag == 0 || d2.u.sym->u.objPtr->type == NUMBER)
+
+	// // if we free obj here, will have problem, like a = a.
+	// // d2 is obj
+	// if (d2.setflag == 0)
 	// {
 	// 	Object *newObj = (Object *)emalloc(sizeof(Object));
-	// 	// newObj->type = d2.u.obj->type;
-	// 	// newObj->size = d2.u.obj->size;
-	// 	if (d2.u.obj->type == NUMBER || d2.u.sym->u.objPtr->type == NUMBER)
+	// 	newObj->type = d2.u.obj->type;
+	// 	newObj->size = d2.u.obj->size;
+
+	// 	if (d2.u.obj->type == NUMBER) 
 	// 	{
-	// 		newObj->type = NUMBER;
-	// 		newObj->size = 1;
 	// 		newObj->u.valuelist = (double *)emalloc(sizeof(double));
-	// 		d1.u.sym->u.objPtr = newObj;
-	// 		double val = (d2.setflag == 1) ? *d2.u.sym->u.objPtr->u.valuelist : *d2.u.obj->u.valuelist;
-	// 		*(d1.u.sym->u.objPtr->u.valuelist) = val;
-	// 	}
-	// 	else if (d2.u.obj->type == LIST)
+	// 		// newObj->u.valuelist = d2.u.obj->u.valuelist;
+	// 		double val = *(d2.u.obj->u.valuelist);
+	// 		*(newObj->u.valuelist) = val;
+	// 	} else if (d2.u.obj->type == LIST)
 	// 	{
-	// 		int size = d2.u.obj->size;
-	// 		newObj->type = LIST;
-	// 		newObj->size = size;
-	// 		newObj->u.valuelist = (double *)emalloc(size * sizeof(double));
-	// 		for (int i = 0; i < size; ++i)
-	// 			newObj->u.valuelist[i] = d2.u.obj->u.valuelist[i];
-	// 		d1.u.sym->u.objPtr = newObj;
-	// 	}
-	// 	else if (d2.u.obj->type == STRING)
+	// 		newObj->u.valuelist = (double *)emalloc(newObj->size * sizeof(double));
+	// 		newObj->u.valuelist = d2.u.obj->u.valuelist;
+	// 	} else if (d2.u.obj->type == STRING)
 	// 	{
-	// 		int size = d2.u.obj->size;
-	// 		newObj->type = STRING;
-	// 		newObj->size = size;
-	// 		// newObj->u.str = (char *)emalloc(sizeof(char) * (size+1));
-	// 		newObj->u.str = (char *)emalloc(size * sizeof(char));
-	// 		// newObj->u.str = d2.u.obj->u.str;
+	// 		newObj->u.str = (char *)emalloc((newObj->size+1) * sizeof(char));
 	// 		strcpy(newObj->u.str, d2.u.obj->u.str);
-	// 		d1.u.sym->u.objPtr = newObj;
-			
-	// 		// printf("\"%s\"\n", d1.u.sym->u.objPtr->u.str);
 	// 	}
+	// 	freeobj(d1);
+	// 	d1.u.sym->u.objPtr = newObj;
+	// 	d1.u.sym->type = VAR;
+	// } 
+	// // d2 is sym
+	// else 
+	// {
+	// 	if (d2.u.sym->type == UNDEF)
+	// 		execerror("assign error, undefined variable", d2.u.sym->name);
+	// 	Object *newObj = (Object *)emalloc(sizeof(Object));
+	// 	newObj->type = d2.u.sym->u.objPtr->type;
+	// 	newObj->size = d2.u.sym->u.objPtr->size;
+
+	// 	if (d2.u.sym->u.objPtr->type == NUMBER)
+	// 	{
+	// 		newObj->u.valuelist = (double *)emalloc(sizeof(double));
+	// 		// newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
+	// 		double val = *(d2.u.sym->u.objPtr->u.valuelist);
+	// 		*(newObj->u.valuelist) = val;
+	// 	} else if (d2.u.sym->u.objPtr->type == LIST) 
+	// 	{
+	// 		newObj->u.valuelist = (double *)emalloc(newObj->size * sizeof(double));
+	// 		newObj->u.valuelist = d2.u.sym->u.objPtr->u.valuelist;
+	// 	} else if (d2.u.sym->u.objPtr->type == STRING)
+	// 	{
+	// 		newObj->u.str = (char *)emalloc((newObj->size+1) * sizeof(char));
+	// 		strcpy(newObj->u.str, d2.u.sym->u.objPtr->u.str);
+	// 	}
+	// 	freeobj(d1);
+	// 	d1.u.sym->u.objPtr = newObj;
 	// 	d1.u.sym->type = VAR;
 	// }
-	// // case 2 : d1 = d2, d2 is changeable, d2 can be LIST sym
-	// else if (d2.u.sym->u.objPtr->type == LIST)
-	// 	d1.u.sym->u.objPtr = d2.u.sym->u.objPtr;
+	d1.u.sym->u.objPtr = d2.u.obj;
+	d1.u.sym->type = VAR;
 	push(d2);
 }
 
 void addeq(void)
 {
+	// a += b ==> d2: a, d1: b
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable", d1.u.sym->name);
-	// d2.val = d1.sym->u.val += d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+
+	if (d2.u.sym->type != VAR)
+		// execerror(d2.u.sym->name, "undefined");
+		execerror("addeq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+		*d2.u.sym->u.objPtr->u.valuelist += *d1.u.obj->u.valuelist;
+	else if (d1.u.obj->type == STRING && d2.u.sym->u.objPtr->type == STRING)
+	{
+		char *tmp = (char *)emalloc((strlen(d2.u.sym->u.objPtr->u.str)+strlen(d1.u.obj->u.str)+1) * sizeof(char));
+		strcpy(tmp, d2.u.sym->u.objPtr->u.str);
+		strcat(tmp, d1.u.obj->u.str);
+		free(d2.u.sym->u.objPtr->u.str);
+		d2.u.sym->u.objPtr->u.str = (char *)emalloc(strlen(tmp) * sizeof(char));
+		strcpy(d2.u.sym->u.objPtr->u.str, tmp);
+	}
+	else
+		execerror("addeq: check var type", (char *)0);
+
+	push(d1);
 }
 
 void subeq(void)
 {
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable",
-				  d1.u.sym->name);
-	// d2.val = d1.sym->u.val -= d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("subeq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+		*d2.u.sym->u.objPtr->u.valuelist -= *d1.u.obj->u.valuelist;
+	else 
+		execerror("subeq: check var type", (char *)0);
+	push(d1);
 }
 
 void muleq(void)
 {
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable",
-				  d1.u.sym->name);
-	// d2.val = d1.sym->u.val *= d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("muleq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+		*d2.u.sym->u.objPtr->u.valuelist *= *d1.u.obj->u.valuelist;
+	else 
+		execerror("muleq: check var type", (char *)0);
+	push(d1);
 }
 
 void diveq(void)
 {
 	Datum d1, d2;
-	d1 = pop();
 	d2 = pop();
-	if (d1.u.sym->type != VAR && d1.u.sym->type != UNDEF)
-		execerror("assignment to non-variable",
-				  d1.u.sym->name);
-	// d2.val = d1.sym->u.val /= d2.val;
-	d1.u.sym->type = VAR;
-	push(d2);
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("diveq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+	{
+		if (*d1.u.obj->u.valuelist == 0.0)
+			execerror("division by zero", (char *)0);
+		*d2.u.sym->u.objPtr->u.valuelist /= *d1.u.obj->u.valuelist;
+	}
+	else 
+		execerror("diveq: check var type", (char *)0);
+	push(d1);
 }
 
 void modeq(void)
 {
-	// Datum d1, d2;
-	// long x;
-	// d1 = pop();
-	// d2 = pop();
-	// if (d1.sym->type != VAR && d1.sym->type != UNDEF)
-	// 	execerror("assignment to non-variable",
-	// 			  d1.sym->name);
-	// /* d2.val = d1.sym->u.val %= d2.val; */
-	// // x = d1.sym->u.val;
-	// x %= (long)d2.val;
-	// // d2.val = d1.sym->u.val = x;
-	// d1.sym->type = VAR;
-	// push(d2);
+	Datum d1, d2;
+	d2 = pop();
+	d1 = pop();
+	if (d2.u.sym->type != VAR)
+		// execerror("assignment to non-variable", d2.u.sym->name);
+		execerror("modeq: assignment to non-variable", d2.u.sym->name);
+
+	if (d1.u.obj->type == NUMBER && d2.u.sym->u.objPtr->type == NUMBER)
+	{
+		if (*d1.u.obj->u.valuelist == 0.0)
+			execerror("division by zero", (char *)0);
+		
+		long int x = (long int)*d2.u.sym->u.objPtr->u.valuelist;
+		x %= (long int)*d1.u.obj->u.valuelist;
+		// (long)*d2.u.sym->u.objPtr->u.valuelist %= (long)*d1.u.obj->u.valuelist;
+		*d2.u.sym->u.objPtr->u.valuelist = (double)x;
+	}
+	else 
+		execerror("modeq: check var type", (char *)0);
+	push(d1);
 }
 
 void printtop(void) /* pop top value from stack, print it */
 {
-	// static Symbol *s; /* last value computed */
-	// if (s == 0)
-	// 	s = install(globalSymbolList, "_", VAR, 0.0);
-	// double d = *valpop();
-	// printf("%.*g\n", (int)*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist), d);
-
 	// what's the diff between prittop and prexpr
 	prexpr();
 	printf("\n");
@@ -794,7 +901,6 @@ void printtop(void) /* pop top value from stack, print it */
 
 void prexpr(void) /* print expr value */
 {
-	Datum d;
 	Object *obj = objpop();
 	printObj(obj);
 }
