@@ -9,6 +9,7 @@
 Symbol *globalSymbolList = 0;
 Symbol *keywordList = 0;
 Info *curDefiningFunction = 0;
+TypeLookupEntry *globalTypeTable = 0;
 
 // TODO: move reading debuglevel and debugflag from argument
 int debugLevel = 0;

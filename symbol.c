@@ -45,3 +45,21 @@ Symbol *lookupThoughAddress(Symbol *symList, Symbol *p)
 			return sp;
 	return 0;
 }
+
+TypeLookupEntry *findTypeTable(char *name) {
+	for (TypeLookupEntry *cur = globalTypeTable; cur != 0; cur = cur->next) {
+		if (strcmp(cur->typename, name) == 0) {
+			return cur;
+		}
+	}
+	return NULL;
+}
+
+MemberCallLookupEntry *findMemberCall(char *name, MemberCallLookupEntry *table) {
+	for (MemberCallLookupEntry *cur = table; cur != 0; cur = cur->next) {
+		if (strcmp(cur->name, name) == 0) {
+			return cur;
+		}
+	}
+	return NULL;
+}
