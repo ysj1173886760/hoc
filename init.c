@@ -141,8 +141,9 @@ void init(void) /* install constants and built-ins in table */
 		if (!cur) {
 			cur = (TypeLookupEntry *) emalloc(sizeof(TypeLookupEntry));
 			cur->memberTable = 0;
-			cur->next = 0;
+			cur->next = globalTypeTable;
 			cur->typename = memberCallTables[i].typeName;
+			globalTypeTable = cur;
 		}
 
 		MemberCallLookupEntry *newEntry = (MemberCallLookupEntry *) emalloc(sizeof(MemberCallLookupEntry));
