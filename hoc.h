@@ -11,15 +11,18 @@ typedef struct Info
 	Inst *defn; // code指令起始位置
 } Info;
 
+typedef struct Object Object;
+
 typedef struct Object
 {
 	long type;
 	int size;
 	union
 	{
-		double *valuelist;
+		double *value;
 		char *str;
 		Info *funcInfo;
+		Object **list;
 	} u;
 } Object;
 
@@ -56,9 +59,32 @@ enum DebugFlag
 	hocExec = 1 << 1
 };
 
+typedef struct Opr
+{
+	int nargs;	//传入的参数数目 例:1
+	// problem : 不定参数有没有参数个数为0的写法？cur stage : one arg
+	void (*func)(void);
+} Opr;
+
+typedef struct MemberCallLookupEntry MemberCallLookupEntry;
+typedef struct TypeLookupEntry TypeLookupEntry;
+
+typedef struct MemberCallLookupEntry {
+	char *name;
+	Opr opr;
+	MemberCallLookupEntry *next;
+} MemberCallLookupEntry;
+
+typedef struct TypeLookupEntry {
+	char *typename;
+	MemberCallLookupEntry *memberTable;
+	TypeLookupEntry *next;
+} TypeLookupEntry;
+
 extern Symbol *globalSymbolList;
 extern Info *curDefiningFunction;
 extern Symbol *keywordList;
+extern TypeLookupEntry *globalTypeTable;
 
 extern char *getCodeThoughAddress(Inst inst);
 extern Symbol *lookupThoughAddress(Symbol *symList, Symbol *p);
@@ -70,6 +96,9 @@ extern void defineBegin(Symbol *), verify(Symbol *);
 extern void defineEnd(Symbol *);
 extern Datum pop(void);
 extern void initcode(void), push(Datum), xpop(void), objpush(void), listpush(void), memberpush(void);
+
+// list opr
+extern void append();
 
 extern void strpush(void), varpush(void);
 extern void add(void), sub(void), mul(void), divop(void), mod(void);
@@ -114,3 +143,9 @@ extern void exprpush(void);
 extern void test(void);
 extern void setFlag(void);
 extern void printStack();
+
+extern TypeLookupEntry *findTypeTable(char *name);
+extern MemberCallLookupEntry *findMemberCall(char *name, MemberCallLookupEntry *table);
+
+extern void listchange();
+extern void numberchange();

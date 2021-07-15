@@ -99,6 +99,19 @@ static struct
 	{"varread", varread},
 	{0, 0}};
 
+// nargs should be amend to a range of available number of arguments
+static struct memberCallBuiltins {
+	char *typeName;
+	char *callName;
+	void (*func)(void);
+	int	nargs;
+} memberCallTables[] = {
+	{"list", "append", append, 1},
+	{"list", "change", listchange, 2},
+	{"number", "change", numberchange, 1},
+	{0, 0, 0, 0}
+};
+
 void init(void) /* install constants and built-ins in table */
 {
 	int i;
@@ -111,8 +124,8 @@ void init(void) /* install constants and built-ins in table */
 
 		Object *newObj = (Object *)emalloc(sizeof(Object));
 		newObj->type = NUMBER;
-		newObj->u.valuelist = (double *)emalloc(sizeof(Object));
-		*(newObj->u.valuelist) = consts[i].cval;
+		newObj->u.value = (double *)emalloc(sizeof(Object));
+		*(newObj->u.value) = consts[i].cval;
 		keywordList->u.objPtr = newObj;
 	}
 	for (i = 0; builtins[i].name; i++)
@@ -120,6 +133,25 @@ void init(void) /* install constants and built-ins in table */
 		s = install(keywordList, builtins[i].name, BLTIN);
 		keywordList = s;
 		s->u.ptr = builtins[i].func;
+	}
+
+	for (i = 0; memberCallTables[i].typeName; i++) {
+		TypeLookupEntry *cur = findTypeTable(memberCallTables[i].typeName);
+		if (!cur) {
+			cur = (TypeLookupEntry *) emalloc(sizeof(TypeLookupEntry));
+			cur->memberTable = 0;
+			cur->next = globalTypeTable;
+			cur->typename = memberCallTables[i].typeName;
+			globalTypeTable = cur;
+		}
+
+		MemberCallLookupEntry *newEntry = (MemberCallLookupEntry *) emalloc(sizeof(MemberCallLookupEntry));
+		newEntry->name = memberCallTables->callName;
+		newEntry->opr.func = memberCallTables[i].func;
+		newEntry->opr.nargs = memberCallTables->nargs;
+
+		newEntry->next = cur->memberTable;
+		cur->memberTable = newEntry;
 	}
 }
 

@@ -33,57 +33,25 @@ typedef struct Frame
 Frame frame[NFRAME];
 Frame *fp; /* frame pointer */
 
-typedef struct Opr
-{
-	char *name; //操作的名称 例:append
-	int nargs;	//传入的参数数目 例:1
-	// problem : 不定参数有没有参数个数为0的写法？cur stage : one arg
-	void (*func)(void);
-} Opr;
-
-#define NOPR 10
-int list_noprs = 0;
-Opr ListOpr[NOPR];
-
 Symbol *cur_opr_sym; //当前操作(A.opr)的对象(A)
 typedef void (*FunType)(void);
 
-int lookup_oprId(Symbol *s)
-{
-	char *name = s->name;
-	for (int i = 0; i < list_noprs; ++i)
-	{
-		if (strcmp(name, ListOpr[i].name) == 0)
-			return i;
-	}
-	return -1;
+Object *objpop() {
+	Datum d = pop();
+	return d.u.obj;
 }
 
 void append(void)
 {
-	double x = *valpop();
-	int i, size = cur_opr_sym->u.objPtr->size + 1;
-	double *tmp = (double *)emalloc(size * sizeof(double));
-	for (i = 0; i < size - 1; ++i)
-		tmp[i] = cur_opr_sym->u.objPtr->u.valuelist[i];
-	tmp[i] = x;
-	free(cur_opr_sym->u.objPtr->u.valuelist);
-	cur_opr_sym->u.objPtr->u.valuelist = tmp;
+	Object *obj = objpop();
+	int size = cur_opr_sym->u.objPtr->size + 1;
+	Object **tmp = (Object **)emalloc(size * sizeof(Object *));
+	for (int i = 0; i < size - 1; ++i)
+		tmp[i] = cur_opr_sym->u.objPtr->u.list[i];
+	tmp[size - 1] = obj;
+	free(cur_opr_sym->u.objPtr->u.list);
+	cur_opr_sym->u.objPtr->u.list = tmp;
 	cur_opr_sym->u.objPtr->size = size;
-}
-
-void insertList_opr(const char *opr_name, int nargs, FunType fp)
-{
-	ListOpr[list_noprs].name = (char *)emalloc(10 * sizeof(char));
-	strcpy(ListOpr[list_noprs].name, opr_name);
-	ListOpr[list_noprs].nargs = nargs;
-	ListOpr[list_noprs].func = fp;
-	++list_noprs;
-}
-
-void init_LIST_opr(void)
-{
-	insertList_opr("append", 1, append);
 }
 
 void test(void)
@@ -122,19 +90,12 @@ double *valpop(void)
 	Datum d;
 	d = pop();
 	if (d.setflag == 0)
-		return d.u.obj->u.valuelist;
+		return d.u.obj->u.value;
 	// d contains sym
 	Symbol *sp = parseVar(d.u.sym);
 	verify(sp);
 
-	// if (!sp->u.objPtr)
-		// execerror("error", "");
-	return sp->u.objPtr->u.valuelist;
-}
-
-Object *objpop() {
-	Datum d = pop();
-	return d.u.obj;
+	return sp->u.objPtr->u.value;
 }
 
 void debugC(int flag, int level, const char *format, ...)
@@ -227,32 +188,39 @@ void listpush(void)
 {
 	Datum d;
 	long size = (long)*pc++;
-	double *valuelist = (double *)emalloc(size * sizeof(double));
+	Object **valuelist = (Object **)emalloc(size * sizeof(Object *));
 	for (int i = size - 1; i >= 0; --i)
 	{
 		// have some problem : can't support a = [[1,2,3],4,5] case
-		double val = *valpop();
-		valuelist[i] = val;
+		Object *obj = objpop();
+		valuelist[i] = obj;
 	}
 	d.setflag = 0;
 	d.u.obj = (Object *)emalloc(sizeof(Object));
 	d.u.obj->type = (long)LIST;
 	d.u.obj->size = size;
-	d.u.obj->u.valuelist = valuelist;
+	d.u.obj->u.list = valuelist;
 	push(d);
 }
 
 void memberpush(void)
 {
 	Datum d;
-	Symbol *sp = (Symbol *)*pc++;
-	int id = *(((Symbol *)*pc++)->u.objPtr->u.valuelist);
+	Symbol *name = (Symbol *)*pc++;
+	Symbol *sp = parseVar(name);
+	
+	Object *obj = objpop();
+	if (obj->type != NUMBER)
+		execerror(sp->name, " can not support non-number index");
+	
+	int id = *(obj->u.value);
 	if (sp->u.objPtr->type != LIST)
 		execerror(sp->name, " is not a LIST type");
 	if (id >= sp->u.objPtr->size)
 		execerror(sp->name, " doesn't has enough member");
-	double tmp = sp->u.objPtr->u.valuelist[id];
-	d = double2Datum(tmp);
+
+	d.setflag = 0;
+	d.u.obj = sp->u.objPtr->u.list[id];
 	push(d);
 }
 
@@ -299,7 +267,7 @@ void whilecode(void)
 	if (obj->type != NUMBER) {
 		execerror("expect number when checking condition", "");
 	}
-	double cond = *(obj->u.valuelist);
+	double cond = *(obj->u.value);
 	
 	while (cond)
 	{
@@ -326,7 +294,7 @@ void forcode(void)
 		execerror("expect number when checking condition", "");
 	}
 
-	double cond = *(obj->u.valuelist);
+	double cond = *(obj->u.value);
 
 	while (cond)
 	{
@@ -354,7 +322,7 @@ void ifcode(void)
 		execerror("expect number when checking condition", "");
 	}
 
-	double cond = *(obj->u.valuelist);
+	double cond = *(obj->u.value);
 
 	if (cond)
 		execute(*((Inst **)(savepc)));
@@ -460,33 +428,61 @@ void oprcall(void)
 	Symbol *name_sp = (Symbol *)pc[0];
 	Symbol *sp = parseVar(name_sp);
 	cur_opr_sym = sp;
-	// cur stage only support LIST type and append opr
-	if (cur_opr_sym->u.objPtr->type != LIST)
-		execerror(cur_opr_sym->name, " type is not LIST");
+
 	Symbol *s_opr = (Symbol *)pc[1];
-	int opr_id = lookup_oprId(s_opr);
-	if (opr_id == -1)
-		execerror(s_opr->name, " not correct opr");
-	int nargs = (int)pc[2];
-	if (nargs != ListOpr[opr_id].nargs)
+
+	TypeLookupEntry *type = NULL;
+	switch (sp->u.objPtr->type) {
+	case LIST:
+		type = findTypeTable("list");
+		break;
+	case NUMBER:
+		type = findTypeTable("number");
+		break;
+	default:
+		execerror(sp->name, "doesn't support member function call");
+	}
+
+	MemberCallLookupEntry *memberCallInfo = findMemberCall(s_opr->name, type->memberTable);
+	if (!memberCallInfo)
+		execerror(s_opr->name, "is not a correct member function call");
+
+	long nargs = (long)pc[2];
+	if (nargs != memberCallInfo->opr.nargs)
 		execerror(s_opr->name, "nargs match error");
+
 	Inst *retpc = pc + 3;
-	// cur stage, we only have one opr, so ListOpr[0], in future add map<string, int>
-	(*ListOpr[opr_id].func)();
+	(*memberCallInfo->opr.func)();
 	pc = (Inst *)retpc;
 }
 
-// Datum double2Datum(double val)
-// {
-// 	Datum d;
-// 	d.setflag = 0;
-// 	d.u.obj = (Object *)emalloc(sizeof(Object));
-// 	d.u.obj->type = NUMBER;
-// 	d.u.obj->size = 1;
-// 	d.u.obj->u.valuelist = (double *)emalloc(sizeof(double));
-// 	*(d.u.obj->u.valuelist) = val;
-// 	return d;
-// }
+void listchange() {
+	Object *obj = objpop();
+	Object *indexObj = objpop();
+	int index = *(indexObj->u.value);
+	
+	if (index >= cur_opr_sym->u.objPtr->size)
+		execerror(cur_opr_sym->name, "out of bounds");
+	
+	cur_opr_sym->u.objPtr->u.list[index] = obj;
+}
+
+void numberchange() {
+	Object *obj = objpop();
+	cur_opr_sym->u.objPtr = obj;
+}
+
+Datum double2Datum(double val)
+{
+	Datum d;
+	d.setflag = 0;
+	d.u.obj = (Object *)emalloc(sizeof(Object));
+	d.u.obj->type = NUMBER;
+	d.u.obj->size = 1;
+	d.u.obj->u.value = (double *)emalloc(sizeof(double));
+	*(d.u.obj->u.value) = val;
+	return d;
+}
 
 void ret(void) /* common return from func or proc */
 {
@@ -591,16 +587,25 @@ void negate(void)
 	push(d);
 }
 
+void printObj(Object *obj) {
+	if (obj->type == STRING) {
+		printf("%s", obj->u.str);
+	} else if (obj->type == LIST) {
+		for (int i = 0; i < obj->size; i++) {
+			printObj(obj->u.list[i]);
+			printf(" ");
+		}
+	} else {
+		printf("%.10g", *(obj->u.value));
+	}
+}
+
 void printStack() {
 	printf("printing stack\n");
 	for (Datum *cur = stackp - 1; cur >= stack; cur--) {
 		if (cur->setflag == 0) {
-			printf("obj %p\n", cur->u.obj);
-			if (cur->u.obj->type == STRING) {
-				printf("obj: string\n");
-			} else {
-				printf("obj: %lf\n", *(cur->u.obj->u.valuelist));
-			}
+			printObj(cur->u.obj);
+			printf(" ");
 		} else {
 			printf("sym: %s\n", cur->u.sym->name);
 		}
@@ -890,40 +895,19 @@ void modeq(void)
 void printtop(void) /* pop top value from stack, print it */
 {
 	// what's the diff between prittop and prexpr
-	Datum d;
-	d = pop();
-
-	if (d.u.obj->type == NUMBER)
-		printf("%.*g\n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
-	// here may have some problems
-	if (d.u.obj->type == LIST)
-	{
-		int size = d.u.obj->size;
-		for (int i = 0; i < size; ++i)
-			printf("%lf ", d.u.obj->u.valuelist[i]);
-		printf("\n");
-	}
-	if (d.u.obj->type == STRING) 
-		printf("\"%s\"\n", d.u.obj->u.str);
+	prexpr();
+	printf("\n");
 }
 
 void prexpr(void) /* print expr value */
 {
-	Datum d;
-	d = pop();
-	if (d.u.obj->type == NUMBER)
-		printf("%.*g\n", (int)(*(lookup(keywordList, "PREC")->u.objPtr->u.valuelist)), *d.u.obj->u.valuelist);
-	// here may have some problems
-	if (d.u.obj->type == LIST)
-	{
-		int size = d.u.obj->size;
-		for (int i = 0; i < size; ++i)
-			printf("%.2lf \n", d.u.obj->u.valuelist[i]);
-	}
-	// print "123", "321" ==> output: "321", "321"
-	// a = "123" and print a ==> output: a
-	if (d.u.obj->type == STRING)
-		printf("\"%s\"\n", d.u.obj->u.str);
+	Object *obj = objpop();
+	printObj(obj);
+}
+
+void prstr(void) /* print string value */
+{
+	printf("%s", (char *)*pc++);
 }
 
 void varread(void) /* read into variable */
