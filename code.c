@@ -500,22 +500,12 @@ void bltin(void)
 	push(d);
 }
 
-Object *objPopWithParse() {
-	Datum d = pop();
-	if (d.setflag) {
-		Symbol *sp = parseVar(d.u.sym);
-		return sp->u.objPtr;
-	} else {
-		return d.u.obj;
-	}
-}
-
 void add(void)
 {
 	Datum d;
 	Object *d1, *d2;
-	d2 = objPopWithParse();
-	d1 = objPopWithParse();
+	d2 = objpop();
+	d1 = objpop();
 	
 	// check undefined var.
 	if (!d1 || !d2)
