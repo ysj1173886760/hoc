@@ -95,6 +95,10 @@ static struct
 	{"diveq", diveq},
 	{"modeq", modeq},
 	{"printop", printtop},
+	{"listpush", listpush},
+	{"memberpush", memberpush},
+	{"oprcall", oprcall},
+	{"exprpush", exprpush},
 	{"prexpr", prexpr},
 	{"varread", varread},
 	{0, 0}};
